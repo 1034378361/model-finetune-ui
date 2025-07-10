@@ -1,1 +1,3 @@
-# Utility modules for Model Finetune UI
+"""
+Utils package for Model Finetune UI
+"""

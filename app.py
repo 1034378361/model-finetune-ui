@@ -24,12 +24,36 @@ import logging
 # 添加主项目路径，以便引用其模块
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+# 导入核心模块
 from core.processor import ModelProcessor
-from utils.encryption import EncryptionManager
-from utils.file_handler import FileHandler
-from utils.validator import DataValidator
-from utils.template_generator import TemplateGenerator
-from utils.utils import performance_monitor, EnhancedLogger
+
+# 尝试导入工具模块，如果失败则使用简化版本
+try:
+    from utils.encryption import EncryptionManager
+    from utils.file_handler import FileHandler
+    from utils.validator import DataValidator
+    from utils.template_generator import TemplateGenerator
+    from utils.utils import performance_monitor, EnhancedLogger
+    UTILS_AVAILABLE = True
+except ImportError as e:
+    st.error(f"工具模块导入失败: {e}")
+    st.info("应用将以简化模式运行")
+    UTILS_AVAILABLE = False
+    
+    # 简化版装饰器
+    def performance_monitor(name):
+        def decorator(func):
+            return func
+        return decorator
+    
+    class EnhancedLogger:
+        @staticmethod
+        def log_operation_context(*args, **kwargs):
+            pass
+        
+        @staticmethod
+        def log_data_summary(*args, **kwargs):
+            pass
 
 # 配置Streamlit页面
 st.set_page_config(
@@ -49,10 +73,18 @@ class ModelFinetuneApp:
     
     def __init__(self):
         self.processor = ModelProcessor()
-        self.encryptor = EncryptionManager()
-        self.file_handler = FileHandler()
-        self.validator = DataValidator()
-        self.template_generator = TemplateGenerator()
+        
+        if UTILS_AVAILABLE:
+            self.encryptor = EncryptionManager()
+            self.file_handler = FileHandler()
+            self.validator = DataValidator()
+            self.template_generator = TemplateGenerator()
+        else:
+            # 简化模式，使用基本功能
+            self.encryptor = None
+            self.file_handler = None
+            self.validator = None
+            self.template_generator = None
         
         # 初始化session state
         if 'processing_complete' not in st.session_state:
