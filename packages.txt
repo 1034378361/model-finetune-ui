@@ -1,0 +1,5 @@
+# Streamlit Cloud系统依赖包
+# 这些包会在部署时自动安装
+
+build-essential
+curl
