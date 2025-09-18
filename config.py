@@ -57,7 +57,7 @@ class UIConfig:
     }
     
     # 特征配置
-    FEATURE_STATIONS = [f"STZ{i}" for i in range(1, 26)]
+    FEATURE_STATIONS = [f"STZ{i}" for i in range(1, 27)]
     
     # 模型类型配置
     MODEL_TYPES = {
@@ -80,21 +80,21 @@ class UIConfig:
         "w": {
             "name": "w权重系数文件",
             "description": "w权重系数矩阵，行为水质参数，列为特征",
-            "example_shape": "(11, 25)",
+            "example_shape": "(11, 26)",
             "data_type": "float",
             "required_for": [1]
         },
         "a": {
             "name": "a权重系数文件", 
             "description": "a权重系数矩阵，行为水质参数，列为特征",
-            "example_shape": "(11, 25)",
+            "example_shape": "(11, 26)",
             "data_type": "float",
             "required_for": [1]
         },
         "b": {
             "name": "b幂系数文件",
             "description": "b幂系数矩阵，行为水质参数，列为特征",
-            "example_shape": "(11, 25)",
+            "example_shape": "(11, 26)",
             "data_type": "float",
             "required_for": [1]
         },
@@ -194,7 +194,7 @@ class ValidationConfig:
     
     # 维度验证
     EXPECTED_WATER_PARAMS_COUNT = 11
-    EXPECTED_STATION_COUNT = 25
+    EXPECTED_STATION_COUNT = 26
     
     @classmethod
     def get_validation_thresholds(cls) -> Dict[str, Any]:

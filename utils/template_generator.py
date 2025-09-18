@@ -30,18 +30,21 @@ class TemplateGenerator:
         if coeff_type in ['w', 'a']:
             # w权重系数、a权重系数：特征 × 水质参数 (需要转置)
             df = pd.DataFrame(
+                0.0,  # 填充默认值0
                 index=self.stations,
                 columns=self.water_params
             )
         elif coeff_type == 'b':
             # b幂系数：水质参数 × 特征 (不需要转置)
             df = pd.DataFrame(
+                0.0,  # 填充默认值0
                 index=self.water_params,
                 columns=self.stations
             )
         elif coeff_type == 'A':
             # A微调系数：水质参数 × A列 (不需要转置)
             df = pd.DataFrame(
+                0.0,  # 填充默认值0
                 index=self.water_params,
                 columns=['A']
             )
@@ -65,6 +68,7 @@ class TemplateGenerator:
         """
         # Range数据格式：水质参数 × min/max
         df = pd.DataFrame(
+            0.0,  # 填充默认值0
             index=self.water_params,
             columns=["min", "max"]  # 最小值和最大值
         )

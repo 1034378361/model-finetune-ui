@@ -28,7 +28,7 @@ class DataValidator:
         ]
         
         # 标准特征编号
-        self.standard_stations = [f"STZ{i}" for i in range(1, 26)]
+        self.standard_stations = [f"STZ{i}" for i in range(1, 27)]
     
     @performance_monitor("validate_data_format")
     def validate_data_format(self, processed_data: Dict[str, pd.DataFrame], model_type: int) -> bool:

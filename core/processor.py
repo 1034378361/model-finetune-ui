@@ -35,7 +35,7 @@ class ModelProcessor:
         ]
 
         # 默认的特征列名
-        self.default_feature_stations = [f"STZ{i}" for i in range(1, 26)]
+        self.default_feature_stations = [f"STZ{i}" for i in range(1, 27)]
 
     def process_user_data(
         self, processed_data: Dict[str, pd.DataFrame], model_type: int

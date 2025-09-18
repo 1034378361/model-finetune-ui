@@ -185,18 +185,18 @@ class ModelFinetuneApp:
                     **Type 1 - 完整建模模式文件要求**：
                     
                     **w权重系数矩阵格式**：
-                    - 行索引：特征编号（STZ1, STZ2, ..., STZ25）
+                    - 行索引：特征编号（STZ1, STZ2, ..., STZ26）
                     - 列索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - 数据类型：浮点数
                     
                     **a权重系数矩阵格式**：
-                    - 行索引：特征编号（STZ1, STZ2, ..., STZ25）
+                    - 行索引：特征编号（STZ1, STZ2, ..., STZ26）
                     - 列索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - 数据类型：浮点数
                     
                     **b幂系数矩阵格式**：
                     - 行索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
-                    - 列索引：特征编号（STZ1, STZ2, ..., STZ25）
+                    - 列索引：特征编号（STZ1, STZ2, ..., STZ26）
                     - 数据类型：浮点数
                     
                     **Range数据格式**：

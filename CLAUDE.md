@@ -4,42 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 常用命令
 
-### 快速开始
-```bash
-# 初始环境设置（首次使用）
-make setup
-
-# 或者手动设置
-./scripts/setup-uv.sh
-
-# 快速启动（适合新用户）
-make quickstart
-```
-
 ### 环境设置
 ```bash
 # 同步依赖
 uv sync
-# 或
-make install
 
 # 同步开发依赖
 uv sync --dev
-# 或
-make install-dev
 ```
 
 ### 运行应用
 ```bash
 # 推荐方式：使用项目脚本
 uv run model-finetune-ui
-# 或
-make run
 
-# 开发模式启动
-make run-dev
-
-# 传统方式：使用启动脚本
+# 使用启动脚本
 uv run python run.py
 
 # 直接运行Streamlit
@@ -49,23 +28,15 @@ uv run streamlit run app.py --server.port 8501
 ### 开发工具
 ```bash
 # 代码格式化
-make format
-# 或
 uv run black .
 
 # 代码检查
-make lint
-# 或  
 uv run ruff check .
 
 # 类型检查
-make type-check
-# 或
 uv run mypy .
 
 # 运行测试
-make test
-# 或
 uv run pytest
 ```
 
@@ -92,8 +63,11 @@ uv remove package-name
 
 ## 项目架构
 
+### 项目概述
+这是一个名为 **Model Finetune UI** 的基于 Streamlit 的 Web 应用，专门用于水质模型微调和数据处理。项目采用现代 Python 开发实践，使用 `uv` 包管理器，支持从 CSV 数据到加密模型文件的完整工作流程。
+
 ### 核心组件
-这是一个基于 Streamlit 的 Web 应用，用于模型微调和数据处理。主要有以下几个核心组件：
+主要有以下几个核心组件：
 
 1. **主应用 (app.py)**
    - `ModelFinetuneApp` 类：主应用逻辑
@@ -137,29 +111,35 @@ uv remove package-name
 标准的 11 个水质参数：turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n
 
 ### 特征配置
-25 个特征：STZ1 到 STZ25
+26 个特征：STZ1 到 STZ26
 
 ## 依赖关系
 
-### 包管理
-项目使用 `uv` 进行包管理：
-- 依赖定义在 `pyproject.toml` 中
-- 使用 `uv.lock` 锁定确切版本
-- 支持开发依赖分离
+### 包管理系统
+项目使用现代 Python 包管理器 `uv`：
+- **主配置文件**: `pyproject.toml` - 包含项目元数据、依赖、构建配置
+- **锁定文件**: `uv.lock` - 确保跨环境依赖版本一致性
+- **云部署**: `requirements.txt` - Streamlit Cloud 专用的精简依赖
+- **开发/生产分离**: 支持开发依赖分离管理
 
-### 主项目依赖
+### 核心依赖
+- **Web 框架**: Streamlit >= 1.28.0
+- **数据处理**: pandas >= 2.0.0, numpy >= 1.24.0  
+- **可视化**: matplotlib, seaborn, plotly
+- **加密**: cryptography >= 41.0.0
+- **UI 增强**: streamlit-option-menu, streamlit-aggrid
+
+### 外部项目依赖
 项目依赖于外部的主项目模块：
 - `model_finetune.utils.ConfigManager`：配置管理
 - `autowaterqualitymodeler.utils.encryption`：数据加密
-
-### 启动检查
-`run.py` 会检查主项目模块是否可用，如果不可用会警告但允许继续运行
+- **容错机制**: `run.py` 会检查主项目模块可用性，不可用时警告但允许继续运行
 
 ## 文件格式要求
 
 ### 系数文件 (w, a, b, A)
 - 行索引：水质参数名称
-- 列索引：特征编号 (STZ1-STZ25) 或 A 列
+- 列索引：特征编号 (STZ1-STZ26) 或 A 列
 - 数据类型：浮点数
 
 ### Range 数据文件
@@ -233,3 +213,18 @@ uv build
 # 安装为可编辑包
 uv pip install -e .
 ```
+
+## 重要说明
+
+### 测试状态
+⚠️ **注意**: 项目目前没有测试文件和测试套件。运行 `uv run pytest` 可能不会找到测试文件。
+
+### 部署配置
+- **本地开发**: 使用 `pyproject.toml` 和 `uv` 进行完整依赖管理
+- **Streamlit Cloud**: 使用 `requirements.txt` 进行简化部署
+- **包文件**: `packages.txt` 用于系统级包依赖
+
+### 项目脚本
+在 `pyproject.toml` 中定义了两个可执行脚本：
+- `model-finetune-ui`: 启动主应用
+- `generate-sample-data`: 生成示例数据
