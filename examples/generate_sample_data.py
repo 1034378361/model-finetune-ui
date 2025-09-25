@@ -173,14 +173,13 @@ def generate_data_description(data_dir: Path):
    - 上传: A_coefficients.csv, range_data.csv
    
 2. **Type 1 (完整建模模式)**:
-   - 上传: w_coefficients.csv, a_coefficients.csv, b_coefficients.csv, range_data.csv
-   - **注意**: A微调系数将根据Range数据自动生成，无需上传
+   - 上传: w_coefficients.csv, a_coefficients.csv, b_coefficients.csv, A_coefficients.csv, range_data.csv
 
 ## 注意事项
 
 - 所有系数文件的行索引必须是水质参数名称
 - w、a、b系数文件的列索引必须是特征编号（STZ1-STZ26）
-- A微调系数文件的列索引必须是A列（仅Type 0模式需要）
+- A微调系数文件的列索引必须是A列
 - Range数据文件的列名必须是水质参数名称
 - 数据类型必须是数值型（浮点数）
 - **重要**：Type 1模式的A微调系数会自动生成，无需手动上传

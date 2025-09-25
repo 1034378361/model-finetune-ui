@@ -64,8 +64,10 @@ class DecryptionManager:
                 file_path=bin_file_path
             )
 
-            if not Path(bin_file_path).exists():
-                logger.error(f"文件不存在: {bin_file_path}")
+            # 验证文件路径
+            validation_result = self._validate_file_path(bin_file_path)
+            if not validation_result["valid"]:
+                logger.error(f"文件路径验证失败: {validation_result['error']}")
                 return None
 
             # 获取解密配置
@@ -88,6 +90,12 @@ class DecryptionManager:
                 decrypted_data = self._simple_decrypt(bin_file_path)
 
             if decrypted_data:
+                # 验证解密后的数据结构
+                validation_result = self._validate_decrypted_data(decrypted_data)
+                if not validation_result["valid"]:
+                    logger.error(f"解密数据验证失败: {validation_result['error']}")
+                    return None
+
                 logger.info(f"bin文件解密成功: {bin_file_path}")
                 return decrypted_data
             else:
@@ -148,19 +156,29 @@ class DecryptionManager:
         """解析Type 0数据（A系数 + Range）"""
         csv_data = {}
 
-        # 解析A系数
-        if "A" in data:
-            a_values = data["A"]
-            if len(a_values) == len(self.water_params):
-                df_a = pd.DataFrame(
-                    {"A": a_values},
-                    index=self.water_params
-                )
-                csv_data["A_coefficients"] = df_a
-                logger.info(f"解析A系数: {df_a.shape}")
+        try:
+            # 解析A系数
+            if "A" in data:
+                a_values = data["A"]
+                if len(a_values) == len(self.water_params):
+                    # 检查是否有异常值
+                    if any(pd.isna(val) for val in a_values):
+                        logger.warning("A系数中包含NaN值")
 
-        # 解析Range数据
-        csv_data.update(self._parse_range_data(data))
+                    df_a = pd.DataFrame(
+                        {"A": a_values},
+                        index=self.water_params
+                    )
+                    csv_data["A_coefficients"] = df_a
+                    logger.info(f"解析A系数: {df_a.shape}")
+                else:
+                    logger.error(f"A系数长度不匹配: 期望{len(self.water_params)}, 实际{len(a_values)}")
+
+            # 解析Range数据
+            csv_data.update(self._parse_range_data(data))
+
+        except Exception as e:
+            logger.error(f"Type 0数据解析失败: {str(e)}")
 
         return csv_data
 
@@ -168,49 +186,73 @@ class DecryptionManager:
         """解析Type 1数据（w、a、b、A系数 + Range）"""
         csv_data = {}
 
-        # 解析w系数 (特征x参数)
-        if "w" in data:
-            w_values = data["w"]
-            expected_size = len(self.feature_stations) * len(self.water_params)
-            if len(w_values) == expected_size:
-                w_matrix = self._reshape_to_matrix(w_values, len(self.feature_stations), len(self.water_params))
-                df_w = pd.DataFrame(w_matrix, index=self.feature_stations, columns=self.water_params)
-                csv_data["w_coefficients"] = df_w
-                logger.info(f"解析w系数: {df_w.shape}")
+        try:
+            # 解析w系数 (特征x参数)
+            if "w" in data:
+                w_values = data["w"]
+                expected_size = len(self.feature_stations) * len(self.water_params)
+                if len(w_values) == expected_size:
+                    w_matrix = self._reshape_to_matrix(w_values, len(self.feature_stations), len(self.water_params))
+                    if w_matrix:  # 检查重塑是否成功
+                        df_w = pd.DataFrame(w_matrix, index=self.feature_stations, columns=self.water_params)
+                        # 检查异常值
+                        if df_w.isna().any().any():
+                            logger.warning("w系数中包含NaN值")
+                        csv_data["w_coefficients"] = df_w
+                        logger.info(f"解析w系数: {df_w.shape}")
+                else:
+                    logger.error(f"w系数长度不匹配: 期望{expected_size}, 实际{len(w_values)}")
 
-        # 解析a系数 (特征x参数)
-        if "a" in data:
-            a_values = data["a"]
-            expected_size = len(self.feature_stations) * len(self.water_params)
-            if len(a_values) == expected_size:
-                a_matrix = self._reshape_to_matrix(a_values, len(self.feature_stations), len(self.water_params))
-                df_a = pd.DataFrame(a_matrix, index=self.feature_stations, columns=self.water_params)
-                csv_data["a_coefficients"] = df_a
-                logger.info(f"解析a系数: {df_a.shape}")
+            # 解析a系数 (特征x参数)
+            if "a" in data:
+                a_values = data["a"]
+                expected_size = len(self.feature_stations) * len(self.water_params)
+                if len(a_values) == expected_size:
+                    a_matrix = self._reshape_to_matrix(a_values, len(self.feature_stations), len(self.water_params))
+                    if a_matrix:
+                        df_a = pd.DataFrame(a_matrix, index=self.feature_stations, columns=self.water_params)
+                        if df_a.isna().any().any():
+                            logger.warning("a系数中包含NaN值")
+                        csv_data["a_coefficients"] = df_a
+                        logger.info(f"解析a系数: {df_a.shape}")
+                else:
+                    logger.error(f"a系数长度不匹配: 期望{expected_size}, 实际{len(a_values)}")
 
-        # 解析b系数 (参数x特征)
-        if "b" in data:
-            b_values = data["b"]
-            expected_size = len(self.water_params) * len(self.feature_stations)
-            if len(b_values) == expected_size:
-                b_matrix = self._reshape_to_matrix(b_values, len(self.water_params), len(self.feature_stations))
-                df_b = pd.DataFrame(b_matrix, index=self.water_params, columns=self.feature_stations)
-                csv_data["b_coefficients"] = df_b
-                logger.info(f"解析b系数: {df_b.shape}")
+            # 解析b系数 (参数x特征)
+            if "b" in data:
+                b_values = data["b"]
+                expected_size = len(self.water_params) * len(self.feature_stations)
+                if len(b_values) == expected_size:
+                    b_matrix = self._reshape_to_matrix(b_values, len(self.water_params), len(self.feature_stations))
+                    if b_matrix:
+                        df_b = pd.DataFrame(b_matrix, index=self.water_params, columns=self.feature_stations)
+                        if df_b.isna().any().any():
+                            logger.warning("b系数中包含NaN值")
+                        csv_data["b_coefficients"] = df_b
+                        logger.info(f"解析b系数: {df_b.shape}")
+                else:
+                    logger.error(f"b系数长度不匹配: 期望{expected_size}, 实际{len(b_values)}")
 
-        # 解析A系数
-        if "A" in data:
-            a_values = data["A"]
-            if len(a_values) == len(self.water_params):
-                df_a = pd.DataFrame(
-                    {"A": a_values},
-                    index=self.water_params
-                )
-                csv_data["A_coefficients"] = df_a
-                logger.info(f"解析A系数: {df_a.shape}")
+            # 解析A系数
+            if "A" in data:
+                A_values = data["A"]
+                if len(A_values) == len(self.water_params):
+                    if any(pd.isna(val) for val in A_values):
+                        logger.warning("A系数中包含NaN值")
+                    df_A = pd.DataFrame(
+                        {"A": A_values},
+                        index=self.water_params
+                    )
+                    csv_data["A_coefficients"] = df_A
+                    logger.info(f"解析A系数: {df_A.shape}")
+                else:
+                    logger.error(f"A系数长度不匹配: 期望{len(self.water_params)}, 实际{len(A_values)}")
 
-        # 解析Range数据
-        csv_data.update(self._parse_range_data(data))
+            # 解析Range数据
+            csv_data.update(self._parse_range_data(data))
+
+        except Exception as e:
+            logger.error(f"Type 1数据解析失败: {str(e)}")
 
         return csv_data
 
@@ -218,15 +260,38 @@ class DecryptionManager:
         """解析Range数据"""
         csv_data = {}
 
-        if "Range" in data:
-            range_values = data["Range"]
-            # Range应该是展平的min/max值
-            if len(range_values) == len(self.water_params) * 2:
-                # 重新组织为min/max列
-                range_matrix = self._reshape_to_matrix(range_values, len(self.water_params), 2)
-                df_range = pd.DataFrame(range_matrix, index=self.water_params, columns=["min", "max"])
-                csv_data["range_data"] = df_range
-                logger.info(f"解析Range数据: {df_range.shape}")
+        try:
+            if "Range" in data:
+                range_values = data["Range"]
+                expected_size = len(self.water_params) * 2
+
+                if len(range_values) == expected_size:
+                    # 重新组织为min/max列
+                    range_matrix = self._reshape_to_matrix(range_values, len(self.water_params), 2)
+                    if range_matrix:
+                        df_range = pd.DataFrame(range_matrix, index=self.water_params, columns=["min", "max"])
+
+                        # 检查异常值
+                        if df_range.isna().any().any():
+                            logger.warning("Range数据中包含NaN值")
+
+                        # 检查min/max关系合理性
+                        invalid_ranges = df_range[df_range["min"] > df_range["max"]]
+                        if not invalid_ranges.empty:
+                            logger.warning(f"发现{len(invalid_ranges)}个参数的min > max: {invalid_ranges.index.tolist()}")
+
+                        # 检查是否存在负值范围（可能不合理）
+                        negative_ranges = df_range[(df_range["min"] < 0) | (df_range["max"] < 0)]
+                        if not negative_ranges.empty:
+                            logger.warning(f"发现{len(negative_ranges)}个参数包含负值: {negative_ranges.index.tolist()}")
+
+                        csv_data["range_data"] = df_range
+                        logger.info(f"解析Range数据: {df_range.shape}")
+                else:
+                    logger.error(f"Range数据长度不匹配: 期望{expected_size}, 实际{len(range_values)}")
+
+        except Exception as e:
+            logger.error(f"Range数据解析失败: {str(e)}")
 
         return csv_data
 
@@ -270,3 +335,163 @@ class DecryptionManager:
                 logger.error(f"生成{data_type}的CSV文件失败: {str(e)}")
 
         return csv_files
+
+    def _validate_file_path(self, file_path: str) -> Dict[str, Any]:
+        """验证文件路径和基本属性"""
+        try:
+            path_obj = Path(file_path)
+
+            # 检查文件是否存在
+            if not path_obj.exists():
+                return {"valid": False, "error": f"文件不存在: {file_path}"}
+
+            # 检查是否为文件（非目录）
+            if not path_obj.is_file():
+                return {"valid": False, "error": f"路径不是文件: {file_path}"}
+
+            # 检查文件大小（不能为空，不能过大）
+            file_size = path_obj.stat().st_size
+            if file_size == 0:
+                return {"valid": False, "error": "文件为空"}
+
+            # 检查文件大小限制（100MB）
+            max_size = 100 * 1024 * 1024  # 100MB
+            if file_size > max_size:
+                return {"valid": False, "error": f"文件过大 ({file_size} bytes > {max_size} bytes)"}
+
+            # 检查文件扩展名
+            allowed_extensions = {'.bin', '.json', '.txt'}  # 允许的扩展名
+            if path_obj.suffix.lower() not in allowed_extensions:
+                logger.warning(f"文件扩展名不常见: {path_obj.suffix}")
+
+            return {"valid": True, "size": file_size}
+
+        except Exception as e:
+            return {"valid": False, "error": f"文件路径验证异常: {str(e)}"}
+
+    def _validate_decrypted_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """验证解密后的数据结构"""
+        try:
+            # 检查基本结构
+            if not isinstance(data, dict):
+                return {"valid": False, "error": "解密数据不是字典格式"}
+
+            # 检查type字段
+            if "type" not in data:
+                return {"valid": False, "error": "缺少模型类型字段 'type'"}
+
+            model_type = data.get("type")
+            if not isinstance(model_type, (int, float)):
+                return {"valid": False, "error": f"模型类型必须是数字: {type(model_type)}"}
+
+            model_type = int(model_type)
+            if model_type not in [0, 1]:
+                return {"valid": False, "error": f"不支持的模型类型: {model_type}"}
+
+            # 根据模型类型验证必需字段
+            if model_type == 0:
+                return self._validate_type_0_data(data)
+            elif model_type == 1:
+                return self._validate_type_1_data(data)
+
+        except Exception as e:
+            return {"valid": False, "error": f"数据结构验证异常: {str(e)}"}
+
+    def _validate_type_0_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """验证Type 0数据结构"""
+        required_fields = ["A", "Range"]
+        missing_fields = []
+
+        for field in required_fields:
+            if field not in data:
+                missing_fields.append(field)
+
+        if missing_fields:
+            return {"valid": False, "error": f"Type 0模式缺少必需字段: {missing_fields}"}
+
+        # 验证A系数
+        a_values = data["A"]
+        if not isinstance(a_values, list):
+            return {"valid": False, "error": f"A系数必须是列表格式，当前类型: {type(a_values)}"}
+
+        if len(a_values) != len(self.water_params):
+            return {"valid": False, "error": f"A系数长度不匹配: 期望{len(self.water_params)}, 实际{len(a_values)}"}
+
+        # 验证A系数值类型和范围
+        for i, val in enumerate(a_values):
+            if not isinstance(val, (int, float)):
+                return {"valid": False, "error": f"A系数[{i}]不是数字类型: {type(val)}"}
+            if abs(val) > 1000:  # 合理性检查
+                logger.warning(f"A系数[{i}]值较大: {val}")
+
+        # 验证Range数据
+        range_values = data["Range"]
+        if not isinstance(range_values, list):
+            return {"valid": False, "error": f"Range数据必须是列表格式，当前类型: {type(range_values)}"}
+
+        expected_range_length = len(self.water_params) * 2
+        if len(range_values) != expected_range_length:
+            return {"valid": False, "error": f"Range数据长度不匹配: 期望{expected_range_length}, 实际{len(range_values)}"}
+
+        # 验证Range值
+        for i, val in enumerate(range_values):
+            if not isinstance(val, (int, float)):
+                return {"valid": False, "error": f"Range数据[{i}]不是数字类型: {type(val)}"}
+
+        # 验证min/max配对
+        for i in range(0, len(range_values), 2):
+            if i + 1 < len(range_values):
+                min_val, max_val = range_values[i], range_values[i + 1]
+                if min_val > max_val:
+                    logger.warning(f"Range数据第{i//2+1}组: min({min_val}) > max({max_val})")
+
+        return {"valid": True}
+
+    def _validate_type_1_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """验证Type 1数据结构"""
+        required_fields = ["w", "a", "b", "A", "Range"]
+        missing_fields = []
+
+        for field in required_fields:
+            if field not in data:
+                missing_fields.append(field)
+
+        if missing_fields:
+            return {"valid": False, "error": f"Type 1模式缺少必需字段: {missing_fields}"}
+
+        # 验证各系数数组的长度
+        expected_sizes = {
+            "w": len(self.feature_stations) * len(self.water_params),  # 26*11
+            "a": len(self.feature_stations) * len(self.water_params),  # 26*11
+            "b": len(self.water_params) * len(self.feature_stations),  # 11*26
+            "A": len(self.water_params),  # 11
+            "Range": len(self.water_params) * 2  # 11*2
+        }
+
+        for field, expected_size in expected_sizes.items():
+            field_data = data[field]
+
+            if not isinstance(field_data, list):
+                return {"valid": False, "error": f"{field}系数必须是列表格式，当前类型: {type(field_data)}"}
+
+            if len(field_data) != expected_size:
+                return {"valid": False, "error": f"{field}系数长度不匹配: 期望{expected_size}, 实际{len(field_data)}"}
+
+            # 验证数值类型
+            for i, val in enumerate(field_data):
+                if not isinstance(val, (int, float)):
+                    return {"valid": False, "error": f"{field}系数[{i}]不是数字类型: {type(val)}"}
+
+                # 合理性检查
+                if field != "Range" and abs(val) > 1000:
+                    logger.warning(f"{field}系数[{i}]值较大: {val}")
+
+        # 验证Range数据的min/max配对
+        range_values = data["Range"]
+        for i in range(0, len(range_values), 2):
+            if i + 1 < len(range_values):
+                min_val, max_val = range_values[i], range_values[i + 1]
+                if min_val > max_val:
+                    logger.warning(f"Range数据第{i//2+1}组: min({min_val}) > max({max_val})")
+
+        return {"valid": True}
