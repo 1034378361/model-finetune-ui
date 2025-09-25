@@ -32,6 +32,7 @@ except ImportError:
 # 尝试导入工具模块，如果失败则使用简化版本
 try:
     from .utils.encryption import EncryptionManager
+    from .utils.decryption import DecryptionManager
     from .utils.file_handler import FileHandler
     from .utils.template_generator import TemplateGenerator
     from .utils.utils import EnhancedLogger, performance_monitor
@@ -41,6 +42,7 @@ except ImportError:
     # 如果相对导入失败，尝试绝对导入
     try:
         from src.model_finetune_ui.utils.encryption import EncryptionManager
+        from src.model_finetune_ui.utils.decryption import DecryptionManager
         from src.model_finetune_ui.utils.file_handler import FileHandler
         from src.model_finetune_ui.utils.template_generator import TemplateGenerator
         from src.model_finetune_ui.utils.utils import EnhancedLogger, performance_monitor
@@ -89,12 +91,14 @@ class ModelFinetuneApp:
 
         if UTILS_AVAILABLE:
             self.encryptor = EncryptionManager()
+            self.decryptor = DecryptionManager()
             self.file_handler = FileHandler()
             self.validator = DataValidator()
             self.template_generator = TemplateGenerator()
         else:
             # 简化模式，使用基本功能
             self.encryptor = None
+            self.decryptor = None
             self.file_handler = None
             self.validator = None
             self.template_generator = None
@@ -123,20 +127,32 @@ class ModelFinetuneApp:
         with st.sidebar:
             st.header("⚙️ 配置选项")
 
-            # Model Type选择
-            model_type = st.selectbox(
-                "选择模型类型",
-                options=[0, 1],
-                format_func=lambda x: f"Type {x} - {'微调模式' if x == 0 else '完整建模模式'}",
-                help="Type 0: 仅使用A系数进行微调\nType 1: 使用完整的w、a、b、A系数建模",
+            # 应用模式选择
+            app_mode = st.selectbox(
+                "选择应用模式",
+                options=["encrypt", "decrypt"],
+                format_func=lambda x: "📦 加密模式 (CSV→BIN)" if x == "encrypt" else "🔓 解密模式 (BIN→CSV)",
+                help="加密模式: 上传CSV文件生成加密BIN文件\n解密模式: 上传BIN文件解析并下载CSV文件",
             )
 
-            # 输出目录设置
-            output_dir = st.text_input(
-                "输出目录", value="./ui_output", help="生成的模型文件保存位置"
-            )
+            if app_mode == "encrypt":
+                # Model Type选择
+                model_type = st.selectbox(
+                    "选择模型类型",
+                    options=[0, 1],
+                    format_func=lambda x: f"Type {x} - {'微调模式' if x == 0 else '完整建模模式'}",
+                    help="Type 0: 仅使用A系数进行微调\nType 1: 使用完整的w、a、b、A系数建模",
+                )
 
-            return model_type, output_dir
+                # 输出目录设置
+                output_dir = st.text_input(
+                    "输出目录", value="./ui_output", help="生成的模型文件保存位置"
+                )
+            else:
+                model_type = None
+                output_dir = None
+
+            return app_mode, model_type, output_dir
 
     def render_file_upload_section(self, model_type: int):
         """渲染文件上传区域"""
@@ -315,6 +331,135 @@ class ModelFinetuneApp:
 
         return True
 
+    def render_decrypt_section(self):
+        """渲染解密模式界面"""
+        st.header("🔓 模型文件解密")
+
+        st.markdown("""
+        ### 📋 功能说明
+        - 上传加密的模型BIN文件
+        - 自动解密并解析出参数
+        - 下载对应的CSV文件
+        """)
+
+        # BIN文件上传
+        uploaded_bin = st.file_uploader(
+            "📄 上传BIN文件",
+            type=['bin'],
+            help="上传需要解密的模型文件（.bin格式）",
+        )
+
+        if uploaded_bin is not None:
+            st.success(f"✅ 文件已上传：{uploaded_bin.name} ({uploaded_bin.size} bytes)")
+
+            # 处理按钮
+            if st.button("🔓 解密文件", type="primary", use_container_width=True):
+                result = self.process_decrypt_file(uploaded_bin)
+                if result:
+                    st.session_state.decrypt_result = result
+                    st.session_state.decrypt_complete = True
+                    st.rerun()
+
+        # 显示解密结果
+        if getattr(st.session_state, 'decrypt_complete', False) and getattr(st.session_state, 'decrypt_result', None):
+            self.render_decrypt_result(st.session_state.decrypt_result)
+
+    def process_decrypt_file(self, uploaded_bin_file):
+        """处理BIN文件解密"""
+        try:
+            with st.spinner("正在解密文件..."):
+                # 保存上传的文件到临时位置
+                temp_path = Path(f"temp_{uploaded_bin_file.name}")
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_bin_file.read())
+
+                # 解密文件
+                decrypted_data = self.decryptor.decrypt_bin_file(str(temp_path))
+
+                if not decrypted_data:
+                    st.error("解密失败：无法解密BIN文件")
+                    temp_path.unlink(missing_ok=True)  # 清理临时文件
+                    return None
+
+                # 解析为CSV格式
+                csv_data = self.decryptor.parse_to_csv_format(decrypted_data)
+
+                if not csv_data:
+                    st.error("解析失败：无法解析解密后的数据")
+                    temp_path.unlink(missing_ok=True)  # 清理临时文件
+                    return None
+
+                # 生成CSV文件
+                csv_files = self.decryptor.generate_csv_files(csv_data)
+
+                # 清理临时文件
+                temp_path.unlink(missing_ok=True)
+
+                st.success(f"🎉 解密成功！解析出 {len(csv_files)} 个CSV文件")
+                return {
+                    'model_type': decrypted_data.get('type', 'unknown'),
+                    'csv_files': csv_files,
+                    'original_filename': uploaded_bin_file.name
+                }
+
+        except Exception as e:
+            st.error(f"解密过程中发生错误：{str(e)}")
+            logger.error(f"解密错误：{str(e)}")
+            # 清理临时文件
+            if 'temp_path' in locals():
+                temp_path.unlink(missing_ok=True)
+            return None
+
+    def render_decrypt_result(self, result):
+        """渲染解密结果区域"""
+        st.header("🎯 解密结果")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.info(f"📄 原文件：{result['original_filename']}")
+            st.metric("模型类型", f"Type {result['model_type']}")
+            st.metric("CSV文件数量", len(result['csv_files']))
+
+        with col2:
+            st.success("✅ 解密完成")
+            st.markdown(f"""
+            **解密时间**：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+            **说明**：
+            - 已成功解密模型文件
+            - 参数已解析为CSV格式
+            - 可下载对应的CSV文件
+            """)
+
+        # CSV文件下载区域
+        st.subheader("📥 下载CSV文件")
+
+        if len(result['csv_files']) > 1:
+            # 多个文件时分列显示
+            cols = st.columns(min(3, len(result['csv_files'])))
+            for i, (filename, content) in enumerate(result['csv_files'].items()):
+                with cols[i % 3]:
+                    st.download_button(
+                        label=f"📥 {filename}",
+                        data=content,
+                        file_name=filename,
+                        mime='text/csv',
+                        help=f"下载 {filename} 文件",
+                        use_container_width=True
+                    )
+        else:
+            # 单个文件时居中显示
+            for filename, content in result['csv_files'].items():
+                st.download_button(
+                    label=f"📥 下载 {filename}",
+                    data=content,
+                    file_name=filename,
+                    mime='text/csv',
+                    help=f"下载解析后的 {filename} 文件",
+                    use_container_width=True
+                )
+
     @performance_monitor("process_uploaded_files")
     def process_uploaded_files(
         self, uploaded_files: dict, model_type: int, output_dir: str
@@ -418,8 +563,20 @@ class ModelFinetuneApp:
         self.render_header()
 
         # 获取配置
-        model_type, output_dir = self.render_sidebar()
+        app_mode, model_type, output_dir = self.render_sidebar()
 
+        if app_mode == "encrypt":
+            # 加密模式：CSV → BIN
+            self.render_encrypt_mode(model_type, output_dir)
+        else:
+            # 解密模式：BIN → CSV
+            self.render_decrypt_mode()
+
+        # 渲染页脚
+        self.render_footer()
+
+    def render_encrypt_mode(self, model_type, output_dir):
+        """渲染加密模式界面"""
         # 文件上传区域
         uploaded_files = self.render_file_upload_section(model_type)
 
@@ -438,12 +595,25 @@ class ModelFinetuneApp:
         if st.session_state.processing_complete and st.session_state.result_path:
             self.render_result_section(st.session_state.result_path)
 
-        # 页脚
+    def render_decrypt_mode(self):
+        """渲染解密模式界面"""
+        # 检查解密功能是否可用
+        if not UTILS_AVAILABLE or not self.decryptor:
+            st.error("❌ 解密功能不可用")
+            st.info("请确保所有依赖模块已正确安装")
+            return
+
+        # 渲染解密界面
+        self.render_decrypt_section()
+
+    def render_footer(self):
+        """渲染页脚"""
         st.markdown("---")
         st.markdown(
             """
         <div style='text-align: center; color: #666;'>
-        🚀 Model Finetune UI - 基于原项目的数据处理界面
+        🚀 Model Finetune UI - 基于原项目的数据处理界面<br>
+        支持加密模式(CSV→BIN)和解密模式(BIN→CSV)
         </div>
         """,
             unsafe_allow_html=True,
