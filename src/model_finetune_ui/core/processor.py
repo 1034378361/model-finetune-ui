@@ -15,7 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 class ModelProcessor:
-    """模型数据处理器"""
+    """模型数据处理器，处理用户上传的CSV数据并格式化为模型所需格式。
+
+    基于原项目的_format_result函数逻辑，支持Type 0（微调模式）和Type 1（完整建模模式）
+    两种模型类型的数据处理。处理包括系数矩阵转换、Range系数计算等功能。
+    """
 
     def __init__(self):
         # 默认的水质参数索引

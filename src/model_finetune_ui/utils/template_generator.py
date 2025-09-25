@@ -12,7 +12,11 @@ from ..config import UIConfig
 
 
 class TemplateGenerator:
-    """CSV模板文件生成器"""
+    """CSV模板文件生成器，为不同模型类型生成标准格式的CSV模板文件。
+
+    支持生成w、a、b、A系数矩阵模板和Range数据模板，
+    所有模板都包含正确的行列标题和默认值（0.0）。
+    """
 
     def __init__(self):
         self.water_params = UIConfig.WATER_QUALITY_PARAMS
