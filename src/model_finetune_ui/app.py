@@ -17,8 +17,17 @@ from pathlib import Path
 
 import streamlit as st
 
+# 添加项目根路径以支持绝对导入
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 # 导入核心模块
-from .core.processor import ModelProcessor
+try:
+    from .core.processor import ModelProcessor
+except ImportError:
+    # 如果相对导入失败，使用绝对导入
+    from src.model_finetune_ui.core.processor import ModelProcessor
 
 # 尝试导入工具模块，如果失败则使用简化版本
 try:
@@ -27,12 +36,20 @@ try:
     from .utils.template_generator import TemplateGenerator
     from .utils.utils import EnhancedLogger, performance_monitor
     from .utils.validator import DataValidator
-
     UTILS_AVAILABLE = True
-except ImportError as e:
-    st.error(f"工具模块导入失败: {e}")
-    st.info("应用将以简化模式运行")
-    UTILS_AVAILABLE = False
+except ImportError:
+    # 如果相对导入失败，尝试绝对导入
+    try:
+        from src.model_finetune_ui.utils.encryption import EncryptionManager
+        from src.model_finetune_ui.utils.file_handler import FileHandler
+        from src.model_finetune_ui.utils.template_generator import TemplateGenerator
+        from src.model_finetune_ui.utils.utils import EnhancedLogger, performance_monitor
+        from src.model_finetune_ui.utils.validator import DataValidator
+        UTILS_AVAILABLE = True
+    except ImportError as e:
+        st.error(f"工具模块导入失败: {e}")
+        st.info("应用将以简化模式运行")
+        UTILS_AVAILABLE = False
 
     # 简化版装饰器
     def performance_monitor(name):
