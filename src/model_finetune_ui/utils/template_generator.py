@@ -8,7 +8,7 @@ import io
 
 import pandas as pd
 
-from config import UIConfig
+from ..config import UIConfig
 
 
 class TemplateGenerator:

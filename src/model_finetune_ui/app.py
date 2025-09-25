@@ -17,19 +17,16 @@ from pathlib import Path
 
 import streamlit as st
 
-# 添加主项目路径，以便引用其模块
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 # 导入核心模块
-from core.processor import ModelProcessor
+from .core.processor import ModelProcessor
 
 # 尝试导入工具模块，如果失败则使用简化版本
 try:
-    from utils.encryption import EncryptionManager
-    from utils.file_handler import FileHandler
-    from utils.template_generator import TemplateGenerator
-    from utils.utils import EnhancedLogger, performance_monitor
-    from utils.validator import DataValidator
+    from .utils.encryption import EncryptionManager
+    from .utils.file_handler import FileHandler
+    from .utils.template_generator import TemplateGenerator
+    from .utils.utils import EnhancedLogger, performance_monitor
+    from .utils.validator import DataValidator
 
     UTILS_AVAILABLE = True
 except ImportError as e:
