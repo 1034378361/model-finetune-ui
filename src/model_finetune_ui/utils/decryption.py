@@ -76,14 +76,22 @@ class DecryptionManager:
             # 尝试解密文件
             try:
                 # 首先尝试使用外部解密函数
-                from .utils import decrypt_file_to_data
-                decrypted_data = decrypt_file_to_data(
-                    file_path=bin_file_path,
-                    password=decryption_config["password"],
-                    salt=decryption_config["salt"],
-                    iv=decryption_config["iv"],
-                    logger=logger
-                )
+                from autowaterqualitymodeler.utils.encryption import decrypt_file
+
+                # decrypt_file函数返回的可能是字典或JSON字符串
+                decrypted_result = decrypt_file(bin_file_path)
+                if decrypted_result:
+                    # 检查返回的是字典还是字符串
+                    if isinstance(decrypted_result, dict):
+                        decrypted_data = decrypted_result
+                    elif isinstance(decrypted_result, str):
+                        import json
+                        decrypted_data = json.loads(decrypted_result)
+                    else:
+                        logger.error(f"未知的解密结果类型: {type(decrypted_result)}")
+                        decrypted_data = None
+                else:
+                    decrypted_data = None
             except ImportError:
                 # 如果外部函数不可用，使用简化解密
                 logger.warning("外部解密函数不可用，尝试简化解密")
