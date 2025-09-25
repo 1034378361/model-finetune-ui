@@ -153,28 +153,34 @@ class ModelFinetuneApp:
             st.subheader("系数矩阵文件")
 
             if model_type == 1:
-                # Type 1需要上传w, a, b文件
+                # Type 1需要上传w, a, b, A文件
                 uploaded_files['w'] = st.file_uploader(
                     "📄 上传CSV文件 - w权重系数",
                     type=['csv'],
-                    help="w权重系数矩阵，行为水质参数，列为特征",
+                    help="w权重系数矩阵，行为特征编号，列为水质参数",
                 )
 
                 uploaded_files['a'] = st.file_uploader(
                     "📄 上传CSV文件 - a权重系数",
                     type=['csv'],
-                    help="a权重系数矩阵，行为水质参数，列为特征",
+                    help="a权重系数矩阵，行为特征编号，列为水质参数",
                 )
 
                 uploaded_files['b'] = st.file_uploader(
                     "📄 上传CSV文件 - b幂系数",
                     type=['csv'],
-                    help="b幂系数矩阵，行为水质参数，列为特征",
+                    help="b幂系数矩阵，行为水质参数，列为特征编号",
                 )
 
-                # Type 1模式说明：A系数自动生成
+                uploaded_files['A'] = st.file_uploader(
+                    "📄 上传CSV文件 - A微调系数",
+                    type=['csv'],
+                    help="A微调系数矩阵，行为水质参数，列为A",
+                )
+
+                # Type 1模式说明：现在需要A系数
                 st.info(
-                    "💡 **微调系数说明**: Type 1模式将根据Range数据自动生成微调系数（全部设为1.0），无需手动上传"
+                    "💡 **系数文件说明**: Type 1模式需要上传w、a、b、A四个系数文件和Range数据文件"
                 )
             else:
                 # Type 0需要A系数文件
@@ -215,11 +221,15 @@ class ModelFinetuneApp:
                     - 列索引：特征编号（STZ1, STZ2, ..., STZ26）
                     - 数据类型：浮点数
                     
+                    **A微调系数矩阵格式**：
+                    - 行索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
+                    - 列索引：A列
+                    - 数据类型：浮点数
+
                     **Range数据格式**：
                     - **行索引**：水质参数名称（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - **列索引**：min和max（最小值和最大值）
                     - **数据内容**：每个水质参数的取值范围
-                    - **注意**：A微调系数将根据此数据的行索引自动生成（全部设为1.0）
                     
                     **💡 提示**：
                     - 可以先下载对应的模板文件，填入数据后上传
@@ -291,7 +301,7 @@ class ModelFinetuneApp:
 
         # 检查必需文件
         if model_type == 1:
-            required_files = ['w', 'a', 'b', 'Range']  # Type 1不需要A文件，自动生成
+            required_files = ['w', 'a', 'b', 'A', 'Range']  # Type 1现在也需要A文件
         else:
             required_files = ['A', 'Range']  # Type 0需要A文件
 

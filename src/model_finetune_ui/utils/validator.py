@@ -67,7 +67,7 @@ class DataValidator:
 
             # 检查必需文件
             if model_type == 1:
-                required_files = ['w', 'a', 'b', 'Range']  # Type 1不需要A文件，自动生成
+                required_files = ['w', 'a', 'b', 'A', 'Range']  # Type 1现在也需要A文件
             else:
                 required_files = ['A', 'Range']  # Type 0需要A文件
 

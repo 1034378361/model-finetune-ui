@@ -127,6 +127,6 @@ class TemplateGenerator:
             return ['A', 'Range']
         elif model_type == 1:
             # Type 1 完整建模模式
-            return ['w', 'a', 'b', 'Range']
+            return ['w', 'a', 'b', 'A', 'Range']
         else:
             raise ValueError(f"不支持的模型类型: {model_type}")
