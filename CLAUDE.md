@@ -21,8 +21,8 @@ uv run model-finetune-ui
 # 使用启动脚本
 uv run python run.py
 
-# 直接运行Streamlit
-uv run streamlit run app.py --server.port 8501
+# 直接运行Streamlit（新结构）
+uv run streamlit run src/model_finetune_ui/app.py --server.port 8501
 ```
 
 ### 开发工具
@@ -216,8 +216,13 @@ uv pip install -e .
 
 ## 重要说明
 
-### 测试状态
-⚠️ **注意**: 项目目前没有测试文件和测试套件。运行 `uv run pytest` 可能不会找到测试文件。
+### 测试框架
+✅ **已完成**: 项目已建立完整的测试框架：
+- 单元测试：`tests/unit/` - 测试各个模块功能
+- 集成测试：`tests/integration/` - 测试完整工作流
+- 测试数据：`tests/fixtures/` 和 `tests/data/` - 测试用的fixtures和数据
+- 运行测试：`uv run pytest` - 执行所有测试
+- 测试覆盖率：`uv run pytest --cov` - 查看代码覆盖率
 
 ### 部署配置
 - **本地开发**: 使用 `pyproject.toml` 和 `uv` 进行完整依赖管理
@@ -228,3 +233,43 @@ uv pip install -e .
 在 `pyproject.toml` 中定义了两个可执行脚本：
 - `model-finetune-ui`: 启动主应用
 - `generate-sample-data`: 生成示例数据
+
+## Git分支策略
+
+### 分支结构
+- **main**: 主分支，稳定发布版本
+- **dev**: 开发分支，集成最新开发成果
+- **feature/功能名**: 功能开发分支
+- **fix/问题描述**: 问题修复分支
+- **refactor/重构描述**: 代码重构分支
+
+### 开发流程
+```bash
+# 1. 从main创建功能分支
+git checkout main
+git pull origin main
+git checkout -b feature/new-feature
+
+# 2. 开发完成后推送到远程
+git push -u origin feature/new-feature
+
+# 3. 创建Pull Request合并到dev分支
+
+# 4. dev分支测试完成后合并到main分支
+```
+
+### 分支保护策略
+- main分支受保护，禁止直接推送
+- 所有修改必须通过Pull Request
+- 合并前必须通过代码检查和测试
+- 要求至少一次代码审查
+
+### 提交规范
+使用语义化提交信息：
+- `feat:` - 新功能
+- `fix:` - 问题修复
+- `docs:` - 文档更新
+- `style:` - 代码格式化
+- `refactor:` - 代码重构
+- `test:` - 测试相关
+- `chore:` - 构建工具、依赖更新等
