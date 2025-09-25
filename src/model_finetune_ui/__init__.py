@@ -4,7 +4,7 @@
 支持两种模型类型：Type 0 (微调模式) 和 Type 1 (完整建模模式)。
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Model Finetune Team"
 __email__ = "noreply@example.com"
 

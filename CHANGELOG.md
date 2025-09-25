@@ -5,6 +5,28 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.0] - 2025-09-25
+
+### Added
+- 🔧 Type 1模式现在要求用户上传A系数文件
+- 📥 Type 1模式新增A系数模板下载功能
+- ⚙️ A系数模板默认值设置为-1.0
+
+### Changed
+- 🔄 Type 1模式文件要求从4个增加到5个（w, a, b, A, Range）
+- 📋 更新数据验证器要求Type 1包含A系数文件
+- 🎨 更新UI界面显示Type 1的A系数文件上传器
+- 📖 更新文件格式说明和帮助文档
+
+### Removed
+- ❌ 移除Type 1模式的A系数自动生成逻辑
+- 🔄 不再为Type 1自动创建全1的A系数矩阵
+
+### Technical
+- 🔧 修复Streamlit应用的导入问题，支持直接运行
+- 🏗️ 完善src/包结构的导入回退机制
+- 📦 更新模板生成器、数据验证器和处理器逻辑
+
 ## [1.0.0] - 2025-09-25
 
 ### Added

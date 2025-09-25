@@ -1,6 +1,6 @@
 [project]
 name = "model-finetune-ui"
-version = "1.0.0"
+version = "1.1.0"
 description = "基于Streamlit构建的Web UI项目，用于模型微调和水质数据处理"
 authors = [
     {name = "Model Finetune Team"}
