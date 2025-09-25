@@ -45,7 +45,7 @@ class TemplateGenerator:
         elif coeff_type == 'A':
             # A微调系数：水质参数 × A列 (不需要转置)
             df = pd.DataFrame(
-                0.0, index=self.water_params, columns=['A']  # 填充默认值0
+                -1.0, index=self.water_params, columns=['A']  # 填充默认值-1
             )
         else:
             raise ValueError(f"不支持的系数类型: {coeff_type}")
