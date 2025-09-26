@@ -15,15 +15,25 @@ if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
 
 try:
-    # 导入并运行真正的应用
-    from model_finetune_ui.app import main
+    # 导入新结构中的应用类
+    from model_finetune_ui.app import ModelFinetuneApp
 
-    # 运行主应用
+    # 创建并运行应用
     if __name__ == "__main__":
-        main()
+        app = ModelFinetuneApp()
+        app.run()
 
 except ImportError as e:
     import streamlit as st
     st.error(f"导入错误: {e}")
     st.error("请确保项目结构正确，并且所有依赖都已安装。")
+    st.info("正在尝试使用旧版本的应用结构...")
+
+    # 回退到直接执行应用文件
+    import subprocess
+    import sys
+    try:
+        subprocess.run([sys.executable, "-m", "streamlit", "run", "src/model_finetune_ui/app.py"], check=True)
+    except Exception as fallback_error:
+        st.error(f"回退方案也失败了: {fallback_error}")
     st.stop()
