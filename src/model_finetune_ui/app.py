@@ -367,42 +367,109 @@ class ModelFinetuneApp:
     def process_decrypt_file(self, uploaded_bin_file):
         """处理BIN文件解密"""
         try:
-            with st.spinner("正在解密文件..."):
-                # 保存上传的文件到临时位置
-                temp_path = Path(f"temp_{uploaded_bin_file.name}")
-                with open(temp_path, "wb") as f:
-                    f.write(uploaded_bin_file.read())
+            # 创建进度条和状态容器
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            info_container = st.container()
 
-                # 解密文件
-                decrypted_data = self.decryptor.decrypt_bin_file(str(temp_path))
+            # 步骤1: 准备文件
+            status_text.info("🔍 步骤1/4: 验证和准备文件...")
+            progress_bar.progress(25)
 
-                if not decrypted_data:
-                    st.error("解密失败：无法解密BIN文件")
-                    temp_path.unlink(missing_ok=True)  # 清理临时文件
-                    return None
+            with info_container:
+                file_size = len(uploaded_bin_file.read())
+                uploaded_bin_file.seek(0)  # 重置文件指针
+                st.info(f"📁 文件信息: {uploaded_bin_file.name} ({file_size:,} bytes)")
 
-                # 解析为CSV格式
-                csv_data = self.decryptor.parse_to_csv_format(decrypted_data)
+            # 保存上传的文件到临时位置
+            temp_path = Path(f"temp_{uploaded_bin_file.name}")
+            with open(temp_path, "wb") as f:
+                f.write(uploaded_bin_file.read())
 
-                if not csv_data:
-                    st.error("解析失败：无法解析解密后的数据")
-                    temp_path.unlink(missing_ok=True)  # 清理临时文件
-                    return None
+            # 步骤2: 解密文件
+            status_text.info("🔓 步骤2/4: 解密BIN文件...")
+            progress_bar.progress(50)
 
-                # 生成CSV文件
-                csv_files = self.decryptor.generate_csv_files(csv_data)
+            decrypted_data = self.decryptor.decrypt_bin_file(str(temp_path))
 
-                # 清理临时文件
+            if not decrypted_data:
+                status_text.error("❌ BIN文件解密失败")
+                st.error("解密失败，可能的原因：文件损坏、格式不正确或加密密钥问题")
                 temp_path.unlink(missing_ok=True)
+                return None
 
-                st.success(f"🎉 解密成功！解析出 {len(csv_files)} 个CSV文件")
-                return {
-                    'model_type': decrypted_data.get('type', 'unknown'),
-                    'csv_files': csv_files,
-                    'original_filename': uploaded_bin_file.name
-                }
+            # 显示解密成功信息
+            model_type = decrypted_data.get('type', '未知')
+            feature_count = len(self.decryptor.feature_stations) if self.decryptor.feature_stations else 0
+
+            with info_container:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("模型类型", f"Type {model_type}")
+                with col2:
+                    st.metric("特征数量", f"{feature_count}个")
+                with col3:
+                    st.metric("参数数量", f"{len(self.decryptor.water_params)}个")
+
+            # 步骤3: 解析参数
+            status_text.info("📋 步骤3/4: 解析模型参数...")
+            progress_bar.progress(75)
+
+            csv_data = self.decryptor.parse_to_csv_format(decrypted_data)
+
+            if not csv_data:
+                status_text.error("❌ 参数解析失败")
+                st.error("数据解析失败，模型结构可能不符合标准格式")
+                temp_path.unlink(missing_ok=True)
+                return None
+
+            # 显示解析统计
+            total_cells = sum(df.size for df in csv_data.values())
+            total_non_zero = sum((df != 0).sum().sum() for df in csv_data.values()
+                               if df.select_dtypes(include=[float, int]).size > 0)
+
+            with info_container:
+                st.success(f"✅ 解析成功: {len(csv_data)}个参数文件, {total_cells:,}个数据点, {total_non_zero:,}个非零值")
+
+            # 步骤4: 生成CSV文件
+            status_text.info("💾 步骤4/4: 生成CSV文件...")
+            progress_bar.progress(90)
+
+            csv_files = self.decryptor.generate_csv_files(csv_data)
+
+            if not csv_files:
+                status_text.error("❌ CSV文件生成失败")
+                st.error("CSV文件生成失败，请重试")
+                temp_path.unlink(missing_ok=True)
+                return None
+
+            # 显示文件统计
+            total_size = sum(len(content) for content in csv_files.values())
+
+            # 完成
+            progress_bar.progress(100)
+            status_text.success("🎉 解密处理完成！")
+
+            with info_container:
+                st.success(f"✅ 生成{len(csv_files)}个CSV文件，总大小: {total_size:,} bytes ({total_size/1024:.1f} KB)")
+
+            # 清理临时文件
+            temp_path.unlink(missing_ok=True)
+
+            return {
+                'model_type': model_type,
+                'feature_count': feature_count,
+                'csv_files': csv_files,
+                'original_filename': uploaded_bin_file.name,
+                'file_size': file_size,
+                'total_cells': total_cells,
+                'total_non_zero': total_non_zero,
+                'total_csv_size': total_size
+            }
 
         except Exception as e:
+            if 'status_text' in locals():
+                status_text.error(f"❌ 处理失败: {str(e)}")
             st.error(f"解密过程中发生错误：{str(e)}")
             logger.error(f"解密错误：{str(e)}")
             # 清理临时文件
@@ -414,38 +481,111 @@ class ModelFinetuneApp:
         """渲染解密结果区域"""
         st.header("🎯 解密结果")
 
-        col1, col2 = st.columns(2)
+        # 概览信息
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.info(f"📄 原文件：{result['original_filename']}")
-            st.metric("模型类型", f"Type {result['model_type']}")
-            st.metric("CSV文件数量", len(result['csv_files']))
-
+            st.metric("模型类型", f"Type {result.get('model_type', 'N/A')}")
         with col2:
-            st.success("✅ 解密完成")
-            st.markdown(f"""
-            **解密时间**：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+            st.metric("特征数量", f"{result.get('feature_count', 'N/A')}个")
+        with col3:
+            st.metric("CSV文件", f"{len(result['csv_files'])}个")
+        with col4:
+            total_size_kb = result.get('total_csv_size', 0) / 1024
+            st.metric("总大小", f"{total_size_kb:.1f} KB")
 
-            **说明**：
-            - 已成功解密模型文件
-            - 参数已解析为CSV格式
-            - 可下载对应的CSV文件
-            """)
+        # 详细信息展开框
+        with st.expander("📊 详细统计信息", expanded=False):
+            info_col1, info_col2 = st.columns(2)
 
-        # CSV文件下载区域
+            with info_col1:
+                st.markdown("**📁 原文件信息:**")
+                st.info(f"""
+                • 文件名: {result['original_filename']}
+                • 原始大小: {result.get('file_size', 0):,} bytes
+                • 解密时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                """)
+
+            with info_col2:
+                st.markdown("**📈 数据统计:**")
+                st.info(f"""
+                • 数据点总数: {result.get('total_cells', 0):,}个
+                • 非零值数量: {result.get('total_non_zero', 0):,}个
+                • 稀疏度: {(1-result.get('total_non_zero', 0)/max(result.get('total_cells', 1), 1))*100:.1f}%
+                """)
+
+        # CSV文件预览和下载
+        st.subheader("📄 CSV文件详情")
+
+        # 文件列表表格
+        file_data = []
+        for filename, content in result['csv_files'].items():
+            file_size = len(content)
+            file_type = filename.replace('_coefficients.csv', '').replace('_data.csv', '').replace('.csv', '')
+
+            # 尝试解析CSV以获取维度信息
+            try:
+                import pandas as pd
+                import io
+                df = pd.read_csv(io.BytesIO(content), index_col=0)
+                dimensions = f"{df.shape[0]}×{df.shape[1]}"
+                non_zero_count = (df != 0).sum().sum() if df.select_dtypes(include=[float, int]).size > 0 else 0
+                sparsity = f"{(1-non_zero_count/df.size)*100:.1f}%" if df.size > 0 else "N/A"
+            except:
+                dimensions = "N/A"
+                sparsity = "N/A"
+
+            file_data.append({
+                '文件类型': file_type,
+                '文件名': filename,
+                '维度': dimensions,
+                '大小': f"{file_size:,} bytes",
+                '稀疏度': sparsity
+            })
+
+        # 显示文件信息表格
+        if file_data:
+            import pandas as pd
+            df_files = pd.DataFrame(file_data)
+            st.dataframe(df_files, use_container_width=True)
+
+        # 下载区域
         st.subheader("📥 下载CSV文件")
 
+        # 批量下载按钮
         if len(result['csv_files']) > 1:
-            # 多个文件时分列显示
+            # 创建ZIP包
+            import zipfile
+            import io
+
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for filename, content in result['csv_files'].items():
+                    zip_file.writestr(filename, content)
+
+            zip_buffer.seek(0)
+
+            col_zip, col_space = st.columns([1, 3])
+            with col_zip:
+                st.download_button(
+                    label="📦 批量下载 (ZIP)",
+                    data=zip_buffer.getvalue(),
+                    file_name=f"decrypted_csvs_{result['original_filename'].replace('.bin', '')}.zip",
+                    mime='application/zip',
+                    use_container_width=True
+                )
+
+        # 单个文件下载
+        if len(result['csv_files']) > 1:
             cols = st.columns(min(3, len(result['csv_files'])))
             for i, (filename, content) in enumerate(result['csv_files'].items()):
                 with cols[i % 3]:
                     st.download_button(
-                        label=f"📥 {filename}",
+                        label=f"📄 {filename.replace('_coefficients', '').replace('.csv', '')}",
                         data=content,
                         file_name=filename,
                         mime='text/csv',
-                        help=f"下载 {filename} 文件",
+                        help=f"下载 {filename}",
                         use_container_width=True
                     )
         else:
