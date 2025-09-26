@@ -511,7 +511,6 @@ class ModelFinetuneApp:
                 st.info(f"""
                 • 数据点总数: {result.get('total_cells', 0):,}个
                 • 非零值数量: {result.get('total_non_zero', 0):,}个
-                • 稀疏度: {(1-result.get('total_non_zero', 0)/max(result.get('total_cells', 1), 1))*100:.1f}%
                 """)
 
         # CSV文件预览和下载
@@ -529,18 +528,14 @@ class ModelFinetuneApp:
                 import io
                 df = pd.read_csv(io.BytesIO(content), index_col=0)
                 dimensions = f"{df.shape[0]}×{df.shape[1]}"
-                non_zero_count = (df != 0).sum().sum() if df.select_dtypes(include=[float, int]).size > 0 else 0
-                sparsity = f"{(1-non_zero_count/df.size)*100:.1f}%" if df.size > 0 else "N/A"
             except:
                 dimensions = "N/A"
-                sparsity = "N/A"
 
             file_data.append({
                 '文件类型': file_type,
                 '文件名': filename,
                 '维度': dimensions,
-                '大小': f"{file_size:,} bytes",
-                '稀疏度': sparsity
+                '大小': f"{file_size:,} bytes"
             })
 
         # 显示文件信息表格

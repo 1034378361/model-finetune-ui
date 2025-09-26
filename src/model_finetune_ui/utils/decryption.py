@@ -374,11 +374,7 @@ class DecryptionManager:
                 file_size = len(csv_content)
                 total_size += file_size
 
-                # 显示文件生成详情
-                non_zero_count = (df != 0).sum().sum() if df.select_dtypes(include=[float, int]).size > 0 else 0
-                sparsity = (1 - non_zero_count / df.size) * 100 if df.size > 0 else 0
-
-                logger.info(f"✅ {filename}: {file_size:,} bytes, {df.shape[0]}×{df.shape[1]}, 稀疏度 {sparsity:.1f}%")
+                logger.info(f"✅ {filename}: {file_size:,} bytes, {df.shape[0]}×{df.shape[1]}")
 
             except Exception as e:
                 logger.error(f"❌ 生成{data_type}的CSV文件失败: {str(e)}")
