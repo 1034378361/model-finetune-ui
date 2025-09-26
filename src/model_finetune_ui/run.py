@@ -14,7 +14,7 @@ from pathlib import Path
 def setup_environment():
     """设置环境"""
     # 添加项目根路径
-    project_root = Path(__file__).parent
+    project_root = Path(__file__).parent.parent.parent
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
@@ -39,8 +39,8 @@ def check_main_project():
     """检查主项目是否可用"""
     try:
         # 尝试导入关键模块
-        from src.model_finetune_ui.utils.encryption import EncryptionManager
-        from src.model_finetune_ui.utils.validator import DataValidator
+        from model_finetune_ui.utils.encryption import EncryptionManager
+        from model_finetune_ui.utils.validator import DataValidator
 
         print("✅ 关键模块检查通过")
         return True
@@ -60,7 +60,7 @@ def run_streamlit_app():
     """运行Streamlit应用"""
     try:
         # 设置Streamlit配置
-        app_path = Path(__file__).parent / "src" / "model_finetune_ui" / "app.py"
+        app_path = Path(__file__).parent / "app.py"
         python_exe = get_python_executable()
 
         cmd = [
@@ -86,7 +86,7 @@ def run_streamlit_app():
         print("\n👋 应用已停止")
     except Exception as e:
         print(f"❌ 启动应用时发生错误: {e}")
-        print("💡 建议使用: uv run streamlit run src/model_finetune_ui/app.py")
+        print("💡 建议使用: uv run streamlit run app.py")
         sys.exit(1)
 
 

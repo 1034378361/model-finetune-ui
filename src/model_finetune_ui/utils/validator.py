@@ -19,7 +19,11 @@ logger = logging.getLogger(__name__)
 
 
 class DataValidator:
-    """数据验证器"""
+    """数据验证器，用于验证用户上传数据的格式和内容。
+
+    此类提供数据格式验证、类型检查和数据一致性验证功能，
+    支持Type 0和Type 1两种模型类型的数据验证。
+    """
 
     def __init__(self):
         # 标准水质参数
@@ -63,7 +67,7 @@ class DataValidator:
 
             # 检查必需文件
             if model_type == 1:
-                required_files = ['w', 'a', 'b', 'Range']  # Type 1不需要A文件，自动生成
+                required_files = ['w', 'a', 'b', 'A', 'Range']  # Type 1现在也需要A文件
             else:
                 required_files = ['A', 'Range']  # Type 0需要A文件
 
