@@ -5,7 +5,7 @@ Model Finetune UI项目 - 主应用
 基于Streamlit构建的Web界面，允许用户：
 1. 选择model_type（0或1）
 2. 上传5个CSV文件（w, a, b, A, Range）
-3. 生成加密的模型文件
+3. 生成加密的配置文件
 """
 
 import logging
@@ -31,8 +31,8 @@ except ImportError:
 
 # 尝试导入工具模块，如果失败则使用简化版本
 try:
-    from .utils.encryption import EncryptionManager
     from .utils.decryption import DecryptionManager
+    from .utils.encryption import EncryptionManager
     from .utils.file_handler import FileHandler
     from .utils.template_generator import TemplateGenerator
     from .utils.utils import EnhancedLogger, performance_monitor
@@ -41,11 +41,14 @@ try:
 except ImportError:
     # 如果相对导入失败，尝试绝对导入
     try:
-        from src.model_finetune_ui.utils.encryption import EncryptionManager
         from src.model_finetune_ui.utils.decryption import DecryptionManager
+        from src.model_finetune_ui.utils.encryption import EncryptionManager
         from src.model_finetune_ui.utils.file_handler import FileHandler
         from src.model_finetune_ui.utils.template_generator import TemplateGenerator
-        from src.model_finetune_ui.utils.utils import EnhancedLogger, performance_monitor
+        from src.model_finetune_ui.utils.utils import (
+            EnhancedLogger,
+            performance_monitor,
+        )
         from src.model_finetune_ui.utils.validator import DataValidator
         UTILS_AVAILABLE = True
     except ImportError as e:
@@ -116,8 +119,8 @@ class ModelFinetuneApp:
         st.markdown(
             """
         ### 📋 功能说明
-        - **Model Type 0**: 模型微调模式（仅使用A系数）
-        - **Model Type 1**: 完整建模模式（使用w、a、b、A系数）
+        - **Model Type 0**: 快速配置模式（仅使用校准因子A）
+        - **Model Type 1**: 完整配置模式（使用全套影响因子）
         - **Range数据**: 用于计算指标范围的参考数据
         """
         )
@@ -138,15 +141,15 @@ class ModelFinetuneApp:
             if app_mode == "encrypt":
                 # Model Type选择
                 model_type = st.selectbox(
-                    "选择模型类型",
+                    "选择配置类型",
                     options=[0, 1],
-                    format_func=lambda x: f"Type {x} - {'微调模式' if x == 0 else '完整建模模式'}",
-                    help="Type 0: 仅使用A系数进行微调\nType 1: 使用完整的w、a、b、A系数建模",
+                    format_func=lambda x: f"Type {x} - {'快速配置模式' if x == 0 else '完整配置模式'}",
+                    help="Type 0: 仅使用校准因子A进行快速配置\nType 1: 使用完整的影响因子配置",
                 )
 
                 # 输出目录设置
                 output_dir = st.text_input(
-                    "输出目录", value="./ui_output", help="生成的模型文件保存位置"
+                    "输出目录", value="./ui_output", help="生成的配置文件保存位置"
                 )
             else:
                 model_type = None
@@ -166,44 +169,44 @@ class ModelFinetuneApp:
         uploaded_files = {}
 
         with col1:
-            st.subheader("系数矩阵文件")
+            st.subheader("影响因子文件")
 
             if model_type == 1:
                 # Type 1需要上传w, a, b, A文件
                 uploaded_files['w'] = st.file_uploader(
-                    "📄 上传CSV文件 - w权重系数",
+                    "📄 上传CSV文件 - 影响因子w",
                     type=['csv'],
-                    help="w权重系数矩阵，行为特征编号，列为水质参数",
+                    help="影响因子w矩阵，行为特征编号，列为水质参数",
                 )
 
                 uploaded_files['a'] = st.file_uploader(
-                    "📄 上传CSV文件 - a权重系数",
+                    "📄 上传CSV文件 - 影响因子a",
                     type=['csv'],
-                    help="a权重系数矩阵，行为特征编号，列为水质参数",
+                    help="影响因子a矩阵，行为特征编号，列为水质参数",
                 )
 
                 uploaded_files['b'] = st.file_uploader(
-                    "📄 上传CSV文件 - b幂系数",
+                    "📄 上传CSV文件 - 调节因子b",
                     type=['csv'],
-                    help="b幂系数矩阵，行为水质参数，列为特征编号",
+                    help="调节因子b矩阵，行为水质参数，列为特征编号",
                 )
 
                 uploaded_files['A'] = st.file_uploader(
-                    "📄 上传CSV文件 - A微调系数",
+                    "📄 上传CSV文件 - 校准因子A",
                     type=['csv'],
-                    help="A微调系数矩阵，行为水质参数，列为A",
+                    help="校准因子A矩阵，行为水质参数，列为校准值",
                 )
 
                 # Type 1模式说明：现在需要A系数
                 st.info(
-                    "💡 **系数文件说明**: Type 1模式需要上传w、a、b、A四个系数文件和Range数据文件"
+                    "💡 **配置文件说明**: Type 1模式需要上传W、A、B、校准四个因子文件和Range数据文件"
                 )
             else:
                 # Type 0需要A系数文件
                 uploaded_files['A'] = st.file_uploader(
-                    "📄 上传CSV文件 - A微调系数",
+                    "📄 上传CSV文件 - 校准因子A",
                     type=['csv'],
-                    help="微调系数矩阵，行为水质参数，列为A",
+                    help="校准因子A矩阵，行为水质参数，列为校准值",
                 )
 
         with col2:
@@ -220,27 +223,27 @@ class ModelFinetuneApp:
                 if model_type == 1:
                     st.markdown(
                         """
-                    **Type 1 - 完整建模模式文件要求**：
-                    
-                    **w权重系数矩阵格式**：
+                    **Type 1 - 完整配置模式文件要求**：
+
+                    **影响因子w矩阵格式**：
                     - 行索引：特征编号（STZ1, STZ2, ..., STZ26）
                     - 列索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
-                    - 数据类型：浮点数
-                    
-                    **a权重系数矩阵格式**：
+                    - 数据类型：数值
+
+                    **影响因子a矩阵格式**：
                     - 行索引：特征编号（STZ1, STZ2, ..., STZ26）
                     - 列索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
-                    - 数据类型：浮点数
-                    
-                    **b幂系数矩阵格式**：
+                    - 数据类型：数值
+
+                    **调节因子b矩阵格式**：
                     - 行索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - 列索引：特征编号（STZ1, STZ2, ..., STZ26）
-                    - 数据类型：浮点数
-                    
-                    **A微调系数矩阵格式**：
+                    - 数据类型：数值
+
+                    **校准因子A矩阵格式**：
                     - 行索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
-                    - 列索引：A列
-                    - 数据类型：浮点数
+                    - 列索引：校准值
+                    - 数据类型：数值
 
                     **Range数据格式**：
                     - **行索引**：水质参数名称（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
@@ -255,12 +258,12 @@ class ModelFinetuneApp:
                 else:
                     st.markdown(
                         """
-                    **Type 0 - 微调模式文件要求**：
-                    
-                    **A微调系数矩阵格式**：
+                    **Type 0 - 快速配置模式文件要求**：
+
+                    **校准因子A矩阵格式**：
                     - 行索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
-                    - 列索引：A列
-                    - 数据类型：浮点数
+                    - 列索引：校准值
+                    - 数据类型：数值
                     
                     **Range数据格式**：
                     - **行索引**：水质参数名称（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
@@ -279,7 +282,7 @@ class ModelFinetuneApp:
         """渲染模板下载区域"""
         st.subheader("📥 下载模板文件")
 
-        # 获取当前模型类型需要的模板
+        # 获取当前配置类型需要的模板
         required_templates = self.template_generator.get_required_templates(model_type)
         template_info = self.template_generator.get_template_info()
 
@@ -333,12 +336,12 @@ class ModelFinetuneApp:
 
     def render_decrypt_section(self):
         """渲染解密模式界面"""
-        st.header("🔓 模型文件解密")
+        st.header("🔓 配置文件解密")
 
         st.markdown("""
         ### 📋 功能说明
-        - 上传加密的模型BIN文件
-        - 自动解密并解析出参数
+        - 上传加密的配置BIN文件
+        - 自动解密并解析出因子
         - 下载对应的CSV文件
         """)
 
@@ -346,7 +349,7 @@ class ModelFinetuneApp:
         uploaded_bin = st.file_uploader(
             "📄 上传BIN文件",
             type=['bin'],
-            help="上传需要解密的模型文件（.bin格式）",
+            help="上传需要解密的配置文件（.bin格式）",
         )
 
         if uploaded_bin is not None:
@@ -405,21 +408,21 @@ class ModelFinetuneApp:
             with info_container:
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("模型类型", f"Type {model_type}")
+                    st.metric("配置类型", f"Type {model_type}")
                 with col2:
                     st.metric("特征数量", f"{feature_count}个")
                 with col3:
-                    st.metric("参数数量", f"{len(self.decryptor.water_params)}个")
+                    st.metric("因子数量", f"{len(self.decryptor.water_params)}个")
 
-            # 步骤3: 解析参数
-            status_text.info("📋 步骤3/4: 解析模型参数...")
+            # 步骤3: 解析因子
+            status_text.info("📋 步骤3/4: 解析配置因子...")
             progress_bar.progress(75)
 
             csv_data = self.decryptor.parse_to_csv_format(decrypted_data)
 
             if not csv_data:
-                status_text.error("❌ 参数解析失败")
-                st.error("数据解析失败，模型结构可能不符合标准格式")
+                status_text.error("❌ 因子解析失败")
+                st.error("数据解析失败，配置结构可能不符合标准格式")
                 temp_path.unlink(missing_ok=True)
                 return None
 
@@ -429,7 +432,7 @@ class ModelFinetuneApp:
                                if df.select_dtypes(include=[float, int]).size > 0)
 
             with info_container:
-                st.success(f"✅ 解析成功: {len(csv_data)}个参数文件, {total_cells:,}个数据点, {total_non_zero:,}个非零值")
+                st.success(f"✅ 解析成功: {len(csv_data)}个因子文件, {total_cells:,}个数据点, {total_non_zero:,}个非零值")
 
             # 步骤4: 生成CSV文件
             status_text.info("💾 步骤4/4: 生成CSV文件...")
@@ -485,7 +488,7 @@ class ModelFinetuneApp:
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.metric("模型类型", f"Type {result.get('model_type', 'N/A')}")
+            st.metric("配置类型", f"Type {result.get('model_type', 'N/A')}")
         with col2:
             st.metric("特征数量", f"{result.get('feature_count', 'N/A')}个")
         with col3:
@@ -524,8 +527,9 @@ class ModelFinetuneApp:
 
             # 尝试解析CSV以获取维度信息
             try:
-                import pandas as pd
                 import io
+
+                import pandas as pd
                 df = pd.read_csv(io.BytesIO(content), index_col=0)
                 dimensions = f"{df.shape[0]}×{df.shape[1]}"
             except:
@@ -550,8 +554,8 @@ class ModelFinetuneApp:
         # 批量下载按钮
         if len(result['csv_files']) > 1:
             # 创建ZIP包
-            import zipfile
             import io
+            import zipfile
 
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
@@ -639,7 +643,7 @@ class ModelFinetuneApp:
                     encrypted_path = self.encryptor.encrypt_and_save(result, output_dir)
 
                     if encrypted_path:
-                        st.success(f"🎉 处理完成！模型文件已保存到：{encrypted_path}")
+                        st.success(f"🎉 处理完成！配置文件已保存到：{encrypted_path}")
                         return encrypted_path
                     else:
                         st.error("加密保存失败")
@@ -661,7 +665,7 @@ class ModelFinetuneApp:
             col1, col2 = st.columns(2)
 
             with col1:
-                st.info(f"📄 模型文件：{result_path}")
+                st.info(f"📄 配置文件：{result_path}")
 
                 # 显示文件信息
                 if os.path.exists(result_path):
@@ -673,7 +677,7 @@ class ModelFinetuneApp:
                         file_data = f.read()
 
                     st.download_button(
-                        label="📥 下载模型文件",
+                        label="📥 下载配置文件",
                         data=file_data,
                         file_name=os.path.basename(result_path),
                         mime='application/octet-stream',
@@ -686,7 +690,7 @@ class ModelFinetuneApp:
                 **生成时间**：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 
                 **说明**：
-                - 模型文件已加密保存
+                - 配置文件已加密保存
                 - 可以直接用于后续的水质预测
                 - 请妥善保管加密文件
                 """

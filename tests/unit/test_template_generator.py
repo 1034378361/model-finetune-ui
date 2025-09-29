@@ -2,9 +2,9 @@
 TemplateGenerator单元测试
 """
 
-import pytest
-import pandas as pd
 import io
+
+import pandas as pd
 
 from src.model_finetune_ui.utils.template_generator import TemplateGenerator
 

@@ -33,11 +33,23 @@ uv run black .
 # 代码检查
 uv run ruff check .
 
+# 自动修复代码问题
+uv run ruff check . --fix
+
 # 类型检查
 uv run mypy .
 
 # 运行测试
 uv run pytest
+
+# 测试覆盖率
+uv run pytest --cov
+
+# 运行单个测试文件
+uv run pytest tests/unit/test_validator.py
+
+# 运行特定测试
+uv run pytest tests/unit/test_validator.py::test_validate_coefficients_data
 ```
 
 ### 生成示例数据

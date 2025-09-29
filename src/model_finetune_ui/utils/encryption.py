@@ -78,7 +78,9 @@ class EncryptionManager:
                 logger.error("模型结果格式验证失败")
                 return None
 
-            # 使用本地加密功能
+            # 使用主项目加密功能
+            from autowaterqualitymodeler.utils.encryption import encrypt_data_to_file
+
             encrypted_path = encrypt_data_to_file(
                 data_obj=model_result,
                 password=encryption_config["password"],

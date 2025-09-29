@@ -2,9 +2,7 @@
 解密管理器验证功能测试
 """
 
-import pytest
 import json
-import tempfile
 from pathlib import Path
 
 from src.model_finetune_ui.utils.decryption import DecryptionManager

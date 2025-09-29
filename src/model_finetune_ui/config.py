@@ -58,17 +58,17 @@ class UIConfig:
     # 特征配置
     FEATURE_STATIONS = [f"STZ{i}" for i in range(1, 27)]
 
-    # 模型类型配置
+    # 配置类型设置
     MODEL_TYPES = {
         0: {
-            "name": "微调模式",
-            "description": "仅使用微调系数进行模型微调",
+            "name": "快速配置模式",
+            "description": "仅使用校准因子进行快速配置",
             "required_files": ["A", "Range"],
             "color": "#1f77b4",
         },
         1: {
-            "name": "完整建模模式",
-            "description": "使用完整的w权重、a权重、b幂系数进行建模（微调系数自动生成）",
+            "name": "完整配置模式",
+            "description": "使用完整的影响因子进行配置（校准因子自动生成）",
             "required_files": ["w", "a", "b", "Range"],
             "color": "#ff7f0e",
         },
@@ -77,29 +77,29 @@ class UIConfig:
     # 文件类型配置
     FILE_TYPES = {
         "w": {
-            "name": "w权重系数文件",
-            "description": "w权重系数矩阵，行为水质参数，列为特征",
+            "name": "影响因子w文件",
+            "description": "影响因子w矩阵，行为水质参数，列为特征",
             "example_shape": "(11, 26)",
             "data_type": "float",
             "required_for": [1],
         },
         "a": {
-            "name": "a权重系数文件",
-            "description": "a权重系数矩阵，行为水质参数，列为特征",
+            "name": "影响因子a文件",
+            "description": "影响因子a矩阵，行为水质参数，列为特征",
             "example_shape": "(11, 26)",
             "data_type": "float",
             "required_for": [1],
         },
         "b": {
-            "name": "b幂系数文件",
-            "description": "b幂系数矩阵，行为水质参数，列为特征",
+            "name": "调节因子b文件",
+            "description": "调节因子b矩阵，行为水质参数，列为特征",
             "example_shape": "(11, 26)",
             "data_type": "float",
             "required_for": [1],
         },
         "A": {
-            "name": "A微调系数文件",
-            "description": "微调系数矩阵，行为水质参数，列为A（Type 1模式自动生成全1矩阵）",
+            "name": "校准因子A文件",
+            "description": "校准因子A矩阵，行为水质参数，列为校准值（Type 1模式自动生成全一矩阵）",
             "example_shape": "(11, 1)",
             "data_type": "float",
             "required_for": [0],
@@ -130,7 +130,7 @@ class UIConfig:
 
     @classmethod
     def get_required_files_for_model_type(cls, model_type: int) -> list[str]:
-        """获取指定模型类型需要的文件"""
+        """获取指定配置类型需要的文件"""
         return cls.MODEL_TYPES.get(model_type, {}).get("required_files", [])
 
     @classmethod
@@ -140,7 +140,7 @@ class UIConfig:
 
     @classmethod
     def is_file_required_for_model_type(cls, file_type: str, model_type: int) -> bool:
-        """检查文件是否为指定模型类型必需"""
+        """检查文件是否为指定配置类型必需"""
         required_for = cls.FILE_TYPES.get(file_type, {}).get("required_for", [])
         return model_type in required_for
 
@@ -151,7 +151,7 @@ class UIConfig:
 
     @classmethod
     def get_model_type_info(cls, model_type: int) -> dict[str, Any]:
-        """获取模型类型信息"""
+        """获取配置类型信息"""
         return cls.MODEL_TYPES.get(model_type, {})
 
 

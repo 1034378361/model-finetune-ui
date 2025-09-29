@@ -28,9 +28,9 @@ def setup_environment():
         import pandas
         import streamlit
 
-        print("✅ 基本依赖检查通过")
+        print("[OK] 基本依赖检查通过")
     except ImportError as e:
-        print(f"❌ 缺少依赖: {e}")
+        print(f"[ERROR] 缺少依赖: {e}")
         print("请运行: uv sync")
         sys.exit(1)
 
@@ -42,10 +42,10 @@ def check_main_project():
         from src.model_finetune_ui.utils.encryption import EncryptionManager
         from src.model_finetune_ui.utils.validator import DataValidator
 
-        print("✅ 关键模块检查通过")
+        print("[OK] 关键模块检查通过")
         return True
     except ImportError as e:
-        print(f"⚠️ 关键模块导入失败: {e}")
+        print(f"[WARNING] 关键模块导入失败: {e}")
         print("请确保项目依赖已正确安装")
         return False
 
@@ -75,40 +75,40 @@ def run_streamlit_app():
             "localhost",
         ]
 
-        print("🚀 启动Streamlit应用")
-        print(f"📍 Python解释器: {python_exe}")
-        print(f"📄 应用文件: {app_path}")
+        print("[START] 启动Streamlit应用")
+        print(f"[INFO] Python解释器: {python_exe}")
+        print(f"[INFO] 应用文件: {app_path}")
 
         # 运行应用
         subprocess.run(cmd)
 
     except KeyboardInterrupt:
-        print("\n👋 应用已停止")
+        print("\n[STOP] 应用已停止")
     except Exception as e:
-        print(f"❌ 启动应用时发生错误: {e}")
-        print("💡 建议使用: uv run streamlit run src/model_finetune_ui/app.py")
+        print(f"[ERROR] 启动应用时发生错误: {e}")
+        print("[TIP] 建议使用: uv run streamlit run src/model_finetune_ui/app.py")
         sys.exit(1)
 
 
 def main():
     """主函数"""
-    print("🚀 Model Finetune UI 启动器")
+    print("[START] Model Finetune UI 启动器")
     print("=" * 50)
 
     # 设置环境
-    print("🔧 设置环境...")
+    print("[SETUP] 设置环境...")
     setup_environment()
 
     # 检查关键模块
-    print("🔍 检查关键模块...")
+    print("[CHECK] 检查关键模块...")
     if not check_main_project():
-        print("⚠️ 关键模块检查失败，某些功能可能不可用")
+        print("[WARNING] 关键模块检查失败，某些功能可能不可用")
         response = input("是否继续启动？(y/N): ")
         if response.lower() != 'y':
             sys.exit(1)
 
     # 运行应用
-    print("🌐 启动Web应用...")
+    print("[RUN] 启动Web应用...")
     run_streamlit_app()
 
 

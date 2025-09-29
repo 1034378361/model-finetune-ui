@@ -2,9 +2,8 @@
 ModelProcessor单元测试
 """
 
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from src.model_finetune_ui.core.processor import ModelProcessor
 

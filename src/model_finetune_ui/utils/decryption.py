@@ -5,11 +5,11 @@
 用于解密bin文件并解析出参数，支持保存为CSV格式
 """
 
+import io
 import json
 import logging
-import io
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -34,7 +34,7 @@ class DecryptionManager:
         # 特征站点将根据数据动态推断
         self.feature_stations = None
 
-    def get_decryption_config(self) -> Dict[str, Any]:
+    def get_decryption_config(self) -> dict[str, Any]:
         """获取解密配置"""
         try:
             return ConfigManager.get_encryption_config()
@@ -48,7 +48,7 @@ class DecryptionManager:
             }
 
     @performance_monitor("decrypt_bin_file")
-    def decrypt_bin_file(self, bin_file_path: str) -> Optional[Dict[str, Any]]:
+    def decrypt_bin_file(self, bin_file_path: str) -> dict[str, Any] | None:
         """
         解密bin文件
 
@@ -85,7 +85,15 @@ class DecryptionManager:
                 # 首先尝试使用外部解密函数
                 from autowaterqualitymodeler.utils.encryption import decrypt_file
 
-                decrypted_result = decrypt_file(bin_file_path)
+                # 获取加密配置
+                config = self.get_decryption_config()
+
+                # 使用我们的配置调用解密函数
+                decrypted_result = decrypt_file(
+                    bin_file_path,
+                    password=config['password'],
+                    salt=config['salt']
+                )
                 if decrypted_result:
                     # 检查返回的是字典还是字符串
                     if isinstance(decrypted_result, dict):
@@ -131,11 +139,11 @@ class DecryptionManager:
             logger.error(f"❌ 解密过程中发生错误: {str(e)}")
             return None
 
-    def _simple_decrypt(self, file_path: str) -> Optional[Dict[str, Any]]:
+    def _simple_decrypt(self, file_path: str) -> dict[str, Any] | None:
         """简化解密方法（当外部解密函数不可用时）"""
         try:
             # 尝试直接读取JSON（用于测试）
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 data = json.load(f)
             logger.info("使用简化解密成功")
             return data
@@ -144,7 +152,7 @@ class DecryptionManager:
             return None
 
     @performance_monitor("parse_to_csv_format")
-    def parse_to_csv_format(self, decrypted_data: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
+    def parse_to_csv_format(self, decrypted_data: dict[str, Any]) -> dict[str, pd.DataFrame]:
         """
         将解密数据解析为CSV格式
 
@@ -193,7 +201,7 @@ class DecryptionManager:
             logger.error(f"❌ 解析CSV格式时发生错误: {str(e)}")
             return {}
 
-    def _parse_type_0_data(self, data: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
+    def _parse_type_0_data(self, data: dict[str, Any]) -> dict[str, pd.DataFrame]:
         """解析Type 0数据（A系数 + Range）"""
         csv_data = {}
 
@@ -223,7 +231,7 @@ class DecryptionManager:
 
         return csv_data
 
-    def _parse_type_1_data(self, data: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
+    def _parse_type_1_data(self, data: dict[str, Any]) -> dict[str, pd.DataFrame]:
         """解析Type 1数据（w、a、b、A系数 + Range）"""
         csv_data = {}
 
@@ -297,7 +305,7 @@ class DecryptionManager:
 
         return csv_data
 
-    def _parse_range_data(self, data: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
+    def _parse_range_data(self, data: dict[str, Any]) -> dict[str, pd.DataFrame]:
         """解析Range数据"""
         csv_data = {}
 
@@ -348,7 +356,7 @@ class DecryptionManager:
             matrix.append(row)
         return matrix
 
-    def generate_csv_files(self, csv_data: Dict[str, pd.DataFrame]) -> Dict[str, bytes]:
+    def generate_csv_files(self, csv_data: dict[str, pd.DataFrame]) -> dict[str, bytes]:
         """
         生成CSV文件的字节内容
 
@@ -386,7 +394,7 @@ class DecryptionManager:
 
         return csv_files
 
-    def _validate_file_path(self, file_path: str) -> Dict[str, Any]:
+    def _validate_file_path(self, file_path: str) -> dict[str, Any]:
         """验证文件路径和基本属性"""
         try:
             path_obj = Path(file_path)
@@ -419,7 +427,7 @@ class DecryptionManager:
         except Exception as e:
             return {"valid": False, "error": f"文件路径验证异常: {str(e)}"}
 
-    def _infer_feature_count(self, data: Dict[str, Any]) -> int:
+    def _infer_feature_count(self, data: dict[str, Any]) -> int:
         """从数据中智能推断特征数量"""
         try:
             logger.info("🔍 智能分析特征配置...")
@@ -466,7 +474,7 @@ class DecryptionManager:
             logger.error(f"❌ 推断特征数量时出错: {str(e)}，使用默认值26")
             return 26
 
-    def _validate_feature_consistency(self, data: Dict[str, Any], feature_count: int, param_count: int):
+    def _validate_feature_consistency(self, data: dict[str, Any], feature_count: int, param_count: int):
         """验证特征数量一致性"""
         try:
             expected_sizes = {
@@ -495,7 +503,7 @@ class DecryptionManager:
         except Exception as e:
             logger.error(f"❌ 特征一致性验证出错: {str(e)}")
 
-    def _validate_decrypted_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_decrypted_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """验证解密后的数据结构"""
         try:
             # 检查基本结构
@@ -528,7 +536,7 @@ class DecryptionManager:
         except Exception as e:
             return {"valid": False, "error": f"数据结构验证异常: {str(e)}"}
 
-    def _validate_type_0_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_type_0_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """验证Type 0数据结构"""
         required_fields = ["A", "Range"]
         missing_fields = []
@@ -578,7 +586,7 @@ class DecryptionManager:
 
         return {"valid": True}
 
-    def _validate_type_1_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_type_1_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """验证Type 1数据结构"""
         required_fields = ["w", "a", "b", "A", "Range"]
         missing_fields = []
