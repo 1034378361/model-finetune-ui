@@ -31,8 +31,15 @@ BIN_VERSION = 2
 class EncryptionManager:
     """加密管理器"""
 
-    def __init__(self):
+    def __init__(self, use_new_format: bool = False):
+        """
+        初始化加密管理器
+
+        Args:
+            use_new_format: 是否使用新格式（带版本头），默认False使用旧格式兼容C++
+        """
         self.output_base_dir = None
+        self.use_new_format = use_new_format
 
     def get_encryption_config(self) -> dict[str, Any]:
         """
@@ -92,6 +99,7 @@ class EncryptionManager:
                 iv=encryption_config["iv"],
                 output_dir=str(output_path),
                 logger=logger,
+                use_new_format=self.use_new_format,
             )
 
             if encrypted_path:
@@ -245,6 +253,7 @@ class LowLevelEncryptionManager:
         self,
         config_manager=None,
         param_config_manager: ConfigurationManager | None = None,
+        use_new_format: bool = False,
     ):
         """
         初始化加密管理器
@@ -252,10 +261,12 @@ class LowLevelEncryptionManager:
         Args:
             config_manager: 系统配置管理器实例，用于获取加密参数
             param_config_manager: 参数配置管理器实例，用于获取水质参数和特征站点
+            use_new_format: 是否使用新格式（带版本头），默认False使用旧格式兼容C++
         """
         self.logger = logging.getLogger(__name__)
         self.config_manager = config_manager
         self.param_config_manager = param_config_manager
+        self.use_new_format = use_new_format
 
         # 获取加密配置
         if config_manager:
@@ -328,25 +339,33 @@ class LowLevelEncryptionManager:
             # 加密数据
             encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
 
-            # 获取当前配置（优先使用传入的配置管理器）
-            cfg_mgr = self.param_config_manager or ConfigurationManager()
-            config_meta = {
-                "water_params": cfg_mgr.get_water_params(),
-                "feature_stations": cfg_mgr.get_feature_stations(),
-            }
-            config_json = json.dumps(config_meta, ensure_ascii=False).encode("utf-8")
-
-            # 构建版本头
-            header = BIN_MAGIC  # 4 bytes
-            header += struct.pack(">H", BIN_VERSION)  # 2 bytes, big-endian
-            header += struct.pack(">I", len(config_json))  # 4 bytes, big-endian
-            header += config_json
-
-            # 原有加密数据
+            # 原有加密数据格式: [IV 16字节][加密数据]
             encrypted_with_iv = self.iv + encrypted_data
 
-            # 最终文件内容
-            final_data = header + encrypted_with_iv
+            if self.use_new_format:
+                # 新格式: [MFUI魔数][版本][配置长度][配置JSON][IV][加密数据]
+                # 获取当前配置（优先使用传入的配置管理器）
+                cfg_mgr = self.param_config_manager or ConfigurationManager()
+                config_meta = {
+                    "water_params": cfg_mgr.get_water_params(),
+                    "feature_stations": cfg_mgr.get_feature_stations(),
+                }
+                config_json = json.dumps(config_meta, ensure_ascii=False).encode(
+                    "utf-8"
+                )
+
+                # 构建版本头
+                header = BIN_MAGIC  # 4 bytes
+                header += struct.pack(">H", BIN_VERSION)  # 2 bytes, big-endian
+                header += struct.pack(">I", len(config_json))  # 4 bytes, big-endian
+                header += config_json
+
+                final_data = header + encrypted_with_iv
+                self.logger.info("使用新格式（带版本头）加密")
+            else:
+                # 旧格式: [IV 16字节][加密数据] - 兼容C++
+                final_data = encrypted_with_iv
+                self.logger.info("使用旧格式（兼容C++）加密")
 
             # 如果未提供输出路径，则生成带时间戳的文件名
             if output_dir is None:
@@ -436,10 +455,15 @@ def encrypt_data_to_file(
     iv=b"fixed_iv_16bytes",
     output_dir=None,
     logger=None,
+    use_new_format=False,
 ):
-    """旧的加密函数接口，保持向后兼容"""
+    """旧的加密函数接口，保持向后兼容
+
+    Args:
+        use_new_format: 是否使用新格式（带版本头），默认False使用旧格式兼容C++
+    """
     # 创建临时的加密管理器
-    manager = LowLevelEncryptionManager()
+    manager = LowLevelEncryptionManager(use_new_format=use_new_format)
     if logger:
         manager.logger = logger
 

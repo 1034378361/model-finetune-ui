@@ -298,6 +298,8 @@ def _render_param_config(config_manager, param_type: str):
             config_manager.set_feature_stations(sorted_items)
         # 自动保存配置
         config_manager.save_config()
+        # 增加版本号，强制 sort_items 组件刷新以显示新序号
+        st.session_state[version_key] += 1
         st.rerun()
 
     st.divider()
@@ -438,9 +440,17 @@ class ModelFinetuneApp:
                 output_dir = st.text_input(
                     "输出目录", value="./ui_output", help="生成的模型文件保存位置"
                 )
+
+                # BIN文件格式选择
+                use_new_format = st.checkbox(
+                    "使用新格式（带版本头）",
+                    value=False,
+                    help="默认使用旧格式兼容C++。新格式包含参数配置信息，需要C++端同步更新后才能使用。",
+                )
             else:
                 model_type = None
                 output_dir = None
+                use_new_format = False
 
             # 参数配置区域
             if UTILS_AVAILABLE:
@@ -461,7 +471,7 @@ class ModelFinetuneApp:
                     # 如果配置管理器不可用，显示默认值
                     st.caption("📊 当前配置: 11 个参数, 26 个特征")
 
-            return app_mode, model_type, output_dir
+            return app_mode, model_type, output_dir, use_new_format
 
     def render_file_upload_section(self, model_type: int):
         """渲染文件上传区域"""
@@ -929,7 +939,11 @@ class ModelFinetuneApp:
 
     @performance_monitor("process_uploaded_files")
     def process_uploaded_files(
-        self, uploaded_files: dict, model_type: int, output_dir: str
+        self,
+        uploaded_files: dict,
+        model_type: int,
+        output_dir: str,
+        use_new_format: bool = False,
     ):
         """处理上传的文件"""
         try:
@@ -967,7 +981,8 @@ class ModelFinetuneApp:
                 result = self.processor.process_user_data(processed_data, model_type)
 
                 if result:
-                    # 加密保存
+                    # 加密保存（根据用户选择的格式）
+                    self.encryptor.use_new_format = use_new_format
                     encrypted_path = self.encryptor.encrypt_and_save(result, output_dir)
 
                     if encrypted_path:
@@ -1030,11 +1045,11 @@ class ModelFinetuneApp:
         self.render_header()
 
         # 获取配置
-        app_mode, model_type, output_dir = self.render_sidebar()
+        app_mode, model_type, output_dir, use_new_format = self.render_sidebar()
 
         if app_mode == "encrypt":
             # 加密模式：CSV → BIN
-            self.render_encrypt_mode(model_type, output_dir)
+            self.render_encrypt_mode(model_type, output_dir, use_new_format)
         else:
             # 解密模式：BIN → CSV
             self.render_decrypt_mode()
@@ -1042,7 +1057,7 @@ class ModelFinetuneApp:
         # 渲染页脚
         self.render_footer()
 
-    def render_encrypt_mode(self, model_type, output_dir):
+    def render_encrypt_mode(self, model_type, output_dir, use_new_format=False):
         """渲染加密模式界面"""
         # 文件上传区域
         uploaded_files = self.render_file_upload_section(model_type)
@@ -1051,7 +1066,7 @@ class ModelFinetuneApp:
         if st.button("🚀 开始处理", type="primary", use_container_width=True):
             if self.validate_uploaded_files(uploaded_files, model_type):
                 result_path = self.process_uploaded_files(
-                    uploaded_files, model_type, output_dir
+                    uploaded_files, model_type, output_dir, use_new_format
                 )
                 if result_path:
                     st.session_state.processing_complete = True
