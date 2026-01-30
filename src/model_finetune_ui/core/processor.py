@@ -11,6 +11,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.model_finetune_ui.utils.config_manager import ConfigurationManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,23 +24,10 @@ class ModelProcessor:
     """
 
     def __init__(self):
-        # 默认的水质参数索引
-        self.default_water_quality_params = [
-            "turbidity",
-            "ss",
-            "sd",
-            "do",
-            "codmn",
-            "codcr",
-            "chla",
-            "tn",
-            "tp",
-            "chroma",
-            "nh3n",
-        ]
-
-        # 默认的特征列名
-        self.default_feature_stations = [f"STZ{i}" for i in range(1, 27)]
+        # 从配置管理器获取默认参数
+        config_manager = ConfigurationManager()
+        self.default_water_quality_params = config_manager.get_water_params()
+        self.default_feature_stations = config_manager.get_feature_stations()
 
     def process_user_data(
         self, processed_data: dict[str, pd.DataFrame], model_type: int
@@ -85,9 +74,7 @@ class ModelProcessor:
                 format_result["b"] = b_data.values.flatten().tolist()
                 format_result["A"] = A_data.values.flatten().tolist()
 
-                logger.info(
-                    f"Type 1模式使用用户上传的A系数，共{len(A_data)}个参数"
-                )
+                logger.info(f"Type 1模式使用用户上传的A系数，共{len(A_data)}个参数")
 
             elif model_type == 0:
                 # 微调模式，只需要A系数

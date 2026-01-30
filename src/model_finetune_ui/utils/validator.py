@@ -26,23 +26,22 @@ class DataValidator:
     """
 
     def __init__(self):
-        # 标准水质参数
-        self.standard_water_params = [
-            "turbidity",
-            "ss",
-            "sd",
-            "do",
-            "codmn",
-            "codcr",
-            "chla",
-            "tn",
-            "tp",
-            "chroma",
-            "nh3n",
-        ]
+        from .config_manager import ConfigurationManager
 
-        # 标准特征编号
-        self.standard_stations = [f"STZ{i}" for i in range(1, 27)]
+        # 从配置管理器获取参数
+        config_manager = ConfigurationManager()
+        self.standard_water_params = config_manager.get_water_params()
+        self.standard_stations = config_manager.get_feature_stations()
+
+    @property
+    def expected_water_params(self) -> list[str]:
+        """向后兼容的属性名"""
+        return self.standard_water_params
+
+    @property
+    def expected_stations(self) -> list[str]:
+        """向后兼容的属性名"""
+        return self.standard_stations
 
     @performance_monitor("validate_data_format")
     def validate_data_format(
@@ -67,9 +66,9 @@ class DataValidator:
 
             # 检查必需文件
             if model_type == 1:
-                required_files = ['w', 'a', 'b', 'A', 'Range']  # Type 1现在也需要A文件
+                required_files = ["w", "a", "b", "A", "Range"]  # Type 1现在也需要A文件
             else:
-                required_files = ['A', 'Range']  # Type 0需要A文件
+                required_files = ["A", "Range"]  # Type 0需要A文件
 
             for file_type in required_files:
                 if file_type not in processed_data:
@@ -96,11 +95,11 @@ class DataValidator:
 
             if model_type == 0:
                 # 验证A系数
-                if not self._validate_a_coefficient(processed_data['A']):
+                if not self._validate_a_coefficient(processed_data["A"]):
                     return False
 
             # 验证Range数据
-            if not self._validate_range_data(processed_data['Range']):
+            if not self._validate_range_data(processed_data["Range"]):
                 return False
 
             logger.info("数据格式验证通过")
@@ -115,7 +114,7 @@ class DataValidator:
     ) -> bool:
         """验证系数矩阵（w、a、b）"""
         try:
-            matrices = ['w', 'a', 'b']
+            matrices = ["w", "a", "b"]
 
             for matrix_name in matrices:
                 if matrix_name not in processed_data:
@@ -149,7 +148,7 @@ class DataValidator:
                 stations_in_cols = [
                     col
                     for col in matrix.columns
-                    if col in self.standard_stations or col.startswith('STZ')
+                    if col in self.standard_stations or col.startswith("STZ")
                 ]
                 if len(stations_in_cols) == 0:
                     logger.warning(f"{matrix_name}矩阵列中没有标准特征格式")
@@ -246,7 +245,7 @@ class DataValidator:
         try:
             if model_type == 1:
                 # 检查系数矩阵的维度一致性
-                matrices = ['w', 'a', 'b']
+                matrices = ["w", "a", "b"]
                 shapes = []
 
                 for matrix_name in matrices:
@@ -260,32 +259,32 @@ class DataValidator:
                         warnings.append(f"系数矩阵行数不一致: {shapes}")
 
                 # 检查w和a矩阵的列数是否一致
-                if 'w' in processed_data and 'a' in processed_data:
-                    if processed_data['w'].shape[1] != processed_data['a'].shape[1]:
+                if "w" in processed_data and "a" in processed_data:
+                    if processed_data["w"].shape[1] != processed_data["a"].shape[1]:
                         warnings.append(
                             f"w和a矩阵列数不一致: {processed_data['w'].shape[1]} vs {processed_data['a'].shape[1]}"
                         )
 
             # 检查A系数和其他矩阵的行数是否一致
-            if 'A' in processed_data and model_type == 1:
-                if 'w' in processed_data:
-                    if processed_data['A'].shape[0] != processed_data['w'].shape[0]:
+            if "A" in processed_data and model_type == 1:
+                if "w" in processed_data:
+                    if processed_data["A"].shape[0] != processed_data["w"].shape[0]:
                         warnings.append(
                             f"A系数和w矩阵行数不一致: {processed_data['A'].shape[0]} vs {processed_data['w'].shape[0]}"
                         )
 
             # 检查Range数据的列与其他矩阵的行是否有对应关系
-            if 'Range' in processed_data:
-                range_cols = set(processed_data['Range'].columns)
+            if "Range" in processed_data:
+                range_cols = set(processed_data["Range"].columns)
 
-                if model_type == 1 and 'w' in processed_data:
-                    matrix_rows = set(processed_data['w'].index)
+                if model_type == 1 and "w" in processed_data:
+                    matrix_rows = set(processed_data["w"].index)
                     common_params = range_cols.intersection(matrix_rows)
                     if len(common_params) == 0:
                         warnings.append("Range数据的列与系数矩阵的行没有共同的水质参数")
 
-                if 'A' in processed_data:
-                    a_rows = set(processed_data['A'].index)
+                if "A" in processed_data:
+                    a_rows = set(processed_data["A"].index)
                     common_params = range_cols.intersection(a_rows)
                     if len(common_params) == 0:
                         warnings.append("Range数据的列与A系数的行没有共同的水质参数")
@@ -306,7 +305,7 @@ class DataValidator:
         """检查数据范围合理性"""
         try:
             # 检查系数矩阵的值范围
-            for matrix_name in ['w', 'a', 'b']:
+            for matrix_name in ["w", "a", "b"]:
                 if matrix_name in processed_data:
                     matrix = processed_data[matrix_name]
 
@@ -322,14 +321,14 @@ class DataValidator:
                         )
 
             # 检查A系数
-            if 'A' in processed_data:
-                a_matrix = processed_data['A']
+            if "A" in processed_data:
+                a_matrix = processed_data["A"]
                 if a_matrix.min().min() < -10 or a_matrix.max().max() > 10:
                     warnings.append("A系数存在极值，可能需要检查")
 
             # 检查Range数据
-            if 'Range' in processed_data:
-                range_data = processed_data['Range']
+            if "Range" in processed_data:
+                range_data = processed_data["Range"]
 
                 # 使用本地工具验证水质指标合理性
                 negative_params = []

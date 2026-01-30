@@ -10,6 +10,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.model_finetune_ui.utils.config_manager import ConfigurationManager
+
 
 def generate_sample_data():
     """生成示例数据文件"""
@@ -19,23 +21,10 @@ def generate_sample_data():
     sample_data_dir = examples_dir / "sample_data"
     sample_data_dir.mkdir(exist_ok=True)
 
-    # 水质参数列表
-    water_params = [
-        "turbidity",
-        "ss",
-        "sd",
-        "do",
-        "codmn",
-        "codcr",
-        "chla",
-        "tn",
-        "tp",
-        "chroma",
-        "nh3n",
-    ]
-
-    # 特征列表
-    stations = [f"STZ{i}" for i in range(1, 27)]
+    # 从配置管理器获取参数
+    config_manager = ConfigurationManager()
+    water_params = config_manager.get_water_params()
+    stations = config_manager.get_feature_stations()
 
     print("🔧 生成示例数据文件...")
 

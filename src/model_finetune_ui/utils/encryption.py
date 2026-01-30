@@ -8,6 +8,7 @@
 import json
 import logging
 import os
+import struct
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -17,9 +18,14 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 # 导入本地工具
+from .config_manager import ConfigurationManager
 from .utils import ConfigManager, EnhancedLogger, performance_monitor
 
 logger = logging.getLogger(__name__)
+
+# BIN 文件格式常量
+BIN_MAGIC = b"MFUI"
+BIN_VERSION = 2
 
 
 class EncryptionManager:
@@ -78,9 +84,7 @@ class EncryptionManager:
                 logger.error("模型结果格式验证失败")
                 return None
 
-            # 使用主项目加密功能
-            from autowaterqualitymodeler.utils.encryption import encrypt_data_to_file
-
+            # 使用本地加密功能
             encrypted_path = encrypt_data_to_file(
                 data_obj=model_result,
                 password=encryption_config["password"],
@@ -237,15 +241,21 @@ class EncryptionManager:
 class LowLevelEncryptionManager:
     """底层加密管理器，使用配置文件管理加密参数"""
 
-    def __init__(self, config_manager=None):
+    def __init__(
+        self,
+        config_manager=None,
+        param_config_manager: ConfigurationManager | None = None,
+    ):
         """
         初始化加密管理器
 
         Args:
-            config_manager: 配置管理器实例，如果为None则使用默认参数
+            config_manager: 系统配置管理器实例，用于获取加密参数
+            param_config_manager: 参数配置管理器实例，用于获取水质参数和特征站点
         """
         self.logger = logging.getLogger(__name__)
         self.config_manager = config_manager
+        self.param_config_manager = param_config_manager
 
         # 获取加密配置
         if config_manager:
@@ -283,7 +293,7 @@ class LowLevelEncryptionManager:
             :16
         ]  # 确保IV是16字节
 
-    def encrypt_data(self, data_obj: Any, output_dir: str = None) -> str | None:
+    def encrypt_data(self, data_obj: Any, output_dir: str | None = None) -> str | None:
         """
         加密数据并保存到文件
 
@@ -318,8 +328,25 @@ class LowLevelEncryptionManager:
             # 加密数据
             encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
 
-            # 将IV与加密数据一起存储（IV可以是公开的）
-            final_data = self.iv + encrypted_data
+            # 获取当前配置（优先使用传入的配置管理器）
+            cfg_mgr = self.param_config_manager or ConfigurationManager()
+            config_meta = {
+                "water_params": cfg_mgr.get_water_params(),
+                "feature_stations": cfg_mgr.get_feature_stations(),
+            }
+            config_json = json.dumps(config_meta, ensure_ascii=False).encode("utf-8")
+
+            # 构建版本头
+            header = BIN_MAGIC  # 4 bytes
+            header += struct.pack(">H", BIN_VERSION)  # 2 bytes, big-endian
+            header += struct.pack(">I", len(config_json))  # 4 bytes, big-endian
+            header += config_json
+
+            # 原有加密数据
+            encrypted_with_iv = self.iv + encrypted_data
+
+            # 最终文件内容
+            final_data = header + encrypted_with_iv
 
             # 如果未提供输出路径，则生成带时间戳的文件名
             if output_dir is None:
