@@ -11,7 +11,21 @@ import pytest
 import pandas as pd
 import numpy as np
 
-from src.model_finetune_ui.utils.config_manager import ConfigurationManager
+# 固定默认配置
+DEFAULT_WATER_PARAMS = [
+    "turbidity",
+    "ss",
+    "sd",
+    "do",
+    "codmn",
+    "codcr",
+    "chla",
+    "tn",
+    "tp",
+    "chroma",
+    "nh3n",
+]
+DEFAULT_FEATURE_STATIONS = [f"STZ{i}" for i in range(1, 27)]
 
 
 @pytest.fixture
@@ -24,33 +38,13 @@ def temp_dir():
 @pytest.fixture
 def sample_water_params():
     """水质参数列表fixture"""
-    return [
-        "turbidity",
-        "ss",
-        "sd",
-        "do",
-        "codmn",
-        "codcr",
-        "chla",
-        "tn",
-        "tp",
-        "chroma",
-        "nh3n",
-    ]
-
-
-@pytest.fixture
-def sample_water_params():
-    """水质参数列表fixture"""
-    config_manager = ConfigurationManager()
-    return config_manager.get_water_params()
+    return DEFAULT_WATER_PARAMS.copy()
 
 
 @pytest.fixture
 def sample_feature_stations():
     """特征站点列表fixture"""
-    config_manager = ConfigurationManager()
-    return config_manager.get_feature_stations()
+    return DEFAULT_FEATURE_STATIONS.copy()
 
 
 @pytest.fixture

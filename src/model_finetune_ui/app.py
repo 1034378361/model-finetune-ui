@@ -12,10 +12,86 @@ import logging
 import os
 import sys
 import traceback
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
+
+
+# ==================== 日志处理器 ====================
+class StreamlitLogHandler(logging.Handler):
+    """将日志捕获到内存中供Streamlit显示"""
+
+    _instance = None
+    _logs: deque = deque(maxlen=500)  # 最多保留500条日志
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            timestamp = datetime.fromtimestamp(record.created).strftime("%H:%M:%S")
+            level = record.levelname
+            self._logs.append({"time": timestamp, "level": level, "msg": msg})
+        except Exception:
+            pass
+
+    @classmethod
+    def get_logs(cls) -> list[dict]:
+        """获取所有日志"""
+        return list(cls._logs)
+
+    @classmethod
+    def clear_logs(cls):
+        """清空日志"""
+        cls._logs.clear()
+
+    @classmethod
+    def get_logs_by_level(cls, level: str | None = None) -> list[dict]:
+        """按级别过滤日志"""
+        if level is None or level == "ALL":
+            return list(cls._logs)
+        return [log for log in cls._logs if log["level"] == level]
+
+
+def setup_logging():
+    """配置日志系统，捕获所有相关模块的日志"""
+    # 创建处理器
+    handler = StreamlitLogHandler()
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter("%(name)s - %(message)s")
+    handler.setFormatter(formatter)
+
+    # 配置根日志器
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    # 移除已存在的StreamlitLogHandler（避免重复）
+    for h in root_logger.handlers[:]:
+        if isinstance(h, StreamlitLogHandler):
+            root_logger.removeHandler(h)
+
+    root_logger.addHandler(handler)
+
+    # 配置项目相关的日志器
+    loggers_to_capture = [
+        "src.model_finetune_ui",
+        "model_finetune_ui",
+        "__main__",
+    ]
+    for logger_name in loggers_to_capture:
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.DEBUG)
+        # 确保日志向上传播到根日志器
+        logger.propagate = True
+
+
+# 初始化日志系统
+setup_logging()
 
 # 添加项目根路径以支持绝对导入
 project_root = Path(__file__).parent.parent.parent
@@ -37,7 +113,6 @@ try:
     from .utils.template_generator import TemplateGenerator
     from .utils.utils import EnhancedLogger, performance_monitor
     from .utils.validator import DataValidator
-    from .utils.config_manager import ConfigurationManager
 
     UTILS_AVAILABLE = True
 except ImportError:
@@ -52,7 +127,6 @@ except ImportError:
             performance_monitor,
         )
         from src.model_finetune_ui.utils.validator import DataValidator
-        from src.model_finetune_ui.utils.config_manager import ConfigurationManager
 
         UTILS_AVAILABLE = True
     except ImportError as e:
@@ -75,289 +149,6 @@ except ImportError:
         @staticmethod
         def log_data_summary(*args, **kwargs):
             pass
-
-
-def render_config_page():
-    """渲染参数配置页面（内嵌在侧边栏中）"""
-    # 使用 session_state 缓存 ConfigurationManager 实例
-    if "config_manager" not in st.session_state:
-        try:
-            st.session_state.config_manager = ConfigurationManager()
-        except Exception:
-            st.error("配置管理器初始化失败")
-            return
-    config_manager = st.session_state.config_manager
-
-    st.markdown("### ⚙️ 配置管理")
-    st.markdown("管理水质参数和特征站点的配置，支持拖拽排序、添加、删除等操作。")
-
-    # 显示当前配置统计
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("📊 水质参数数量", len(config_manager.get_water_params()))
-    with col2:
-        st.metric("📍 特征站点数量", len(config_manager.get_feature_stations()))
-
-    st.divider()
-
-    # 水质参数和特征站点配置
-    col_water, col_feature = st.columns(2)
-
-    with col_water:
-        st.subheader("💧 水质参数配置")
-        _render_param_config(config_manager, "water")
-
-    with col_feature:
-        st.subheader("📍 特征站点配置")
-        _render_param_config(config_manager, "feature")
-
-    st.divider()
-
-    # 操作按钮
-    st.subheader("⚙️ 操作")
-    btn_col1, btn_col2, btn_col3 = st.columns(3)
-
-    with btn_col1:
-        if st.button("💾 保存配置", use_container_width=True):
-            if config_manager.save_config():
-                st.success("配置已保存！")
-            else:
-                st.error("保存失败")
-
-    with btn_col2:
-        if st.button("🔄 重置为默认", use_container_width=True):
-            config_manager.reset_to_defaults()
-            config_manager.save_config()
-            # 增加版本号强制刷新
-            st.session_state["water_params_version"] = (
-                st.session_state.get("water_params_version", 0) + 1
-            )
-            st.session_state["feature_stations_version"] = (
-                st.session_state.get("feature_stations_version", 0) + 1
-            )
-            st.success("已重置为默认配置")
-            st.rerun()
-
-    with btn_col3:
-        export_data = config_manager.get_config_json()
-        if export_data:
-            st.download_button(
-                "📤 导出JSON",
-                data=export_data,
-                file_name="config_export.json",
-                mime="application/json",
-                use_container_width=True,
-            )
-
-    st.divider()
-
-    # 多配置管理
-    _render_saved_configs(config_manager)
-
-    # 使用说明
-    with st.expander("ℹ️ 使用说明"):
-        st.markdown("""
-        - **拖拽排序**：拖动参数/站点调整顺序（顺序影响BIN文件数据结构）
-        - **添加**：输入新名称后点击添加按钮
-        - **删除**：从下拉框选择要删除的项目
-        - **保存**：修改后需点击保存才会生效
-        - **配置库**：保存多个配置方案，随时切换
-        """)
-
-
-def _render_saved_configs(config_manager):
-    """渲染已保存配置管理区域"""
-    st.subheader("📚 配置库")
-
-    # 初始化清空标记
-    if "clear_save_name" not in st.session_state:
-        st.session_state["clear_save_name"] = False
-
-    # 如果需要清空输入框，设置默认值
-    default_save_name = "" if st.session_state.get("clear_save_name") else None
-    if st.session_state.get("clear_save_name"):
-        st.session_state["clear_save_name"] = False
-
-    # 保存当前配置
-    col_save, col_name = st.columns([1, 2])
-    with col_name:
-        save_name = st.text_input(
-            "配置名称",
-            value=default_save_name if default_save_name is not None else "",
-            placeholder="例如: 项目A配置、测试环境",
-            key="save_config_name",
-            label_visibility="collapsed",
-        )
-    with col_save:
-        if st.button("💾 保存到配置库", use_container_width=True):
-            if save_name and save_name.strip():
-                if config_manager.save_config_as(save_name.strip()):
-                    st.success(f"已保存为 '{save_name}'")
-                    st.session_state["clear_save_name"] = True
-                    st.rerun()
-                else:
-                    st.error("保存失败")
-            else:
-                st.warning("请输入配置名称")
-
-    # 显示已保存的配置列表
-    saved_configs = config_manager.list_saved_configs()
-
-    if not saved_configs:
-        st.info("暂无保存的配置，输入名称后点击保存按钮创建")
-        return
-
-    st.markdown(f"**已保存 {len(saved_configs)} 个配置：**")
-
-    for cfg in saved_configs:
-        with st.container():
-            cols = st.columns([3, 1, 1, 1])
-            with cols[0]:
-                st.markdown(
-                    f"**{cfg['name']}**  \n"
-                    f"<small>📊 {cfg['water_params_count']}参数 · "
-                    f"📍 {cfg['feature_stations_count']}站点 · "
-                    f"🕐 {cfg['created']}</small>",
-                    unsafe_allow_html=True,
-                )
-            with cols[1]:
-                if st.button(
-                    "📂 加载", key=f"load_{cfg['name']}", use_container_width=True
-                ):
-                    if config_manager.load_saved_config(cfg["name"]):
-                        st.session_state["water_params_version"] = (
-                            st.session_state.get("water_params_version", 0) + 1
-                        )
-                        st.session_state["feature_stations_version"] = (
-                            st.session_state.get("feature_stations_version", 0) + 1
-                        )
-                        st.success(f"已加载 '{cfg['name']}'")
-                        st.rerun()
-                    else:
-                        st.error("加载失败")
-            with cols[2]:
-                if st.button("🗑️", key=f"del_{cfg['name']}", use_container_width=True):
-                    st.session_state[f"confirm_delete_{cfg['name']}"] = True
-            with cols[3]:
-                # 确认删除
-                if st.session_state.get(f"confirm_delete_{cfg['name']}", False):
-                    if st.button(
-                        "⚠️ 确认", key=f"confirm_{cfg['name']}", use_container_width=True
-                    ):
-                        if config_manager.delete_saved_config(cfg["name"]):
-                            st.session_state[f"confirm_delete_{cfg['name']}"] = False
-                            st.success(f"已删除 '{cfg['name']}'")
-                            st.rerun()
-                        else:
-                            st.error("删除失败")
-
-
-def _render_param_config(config_manager, param_type: str):
-    """渲染参数配置区域"""
-    try:
-        from streamlit_sortables import sort_items
-    except ImportError:
-        st.error("请安装 streamlit-sortables: pip install streamlit-sortables")
-        return
-
-    if param_type == "water":
-        items = config_manager.get_water_params()
-        add_placeholder = "例如: ph, ec, bod"
-        add_label = "添加新参数"
-        del_label = "选择要删除的参数"
-        input_key = "new_water_param"
-        version_key = "water_params_version"
-    else:
-        items = config_manager.get_feature_stations()
-        add_placeholder = "例如: STZ27, SITE_A"
-        add_label = "添加新站点"
-        del_label = "选择要删除的站点"
-        input_key = "new_feature_station"
-        version_key = "feature_stations_version"
-
-    # 初始化版本号（用于强制刷新 sort_items 组件）
-    if version_key not in st.session_state:
-        st.session_state[version_key] = 0
-
-    # 拖拽排序 - 带序号显示
-    st.markdown(f"**拖拽调整{'参数' if param_type == 'water' else '站点'}顺序：**")
-
-    # 创建带序号的显示列表
-    items_with_index = [f"{i + 1}. {item}" for i, item in enumerate(items)]
-    # 使用版本号作为 key 的一部分，强制组件在数据变化时重新渲染
-    sort_key = f"sort_{param_type}_v{st.session_state[version_key]}"
-    sorted_items_with_index = sort_items(items_with_index, key=sort_key)
-
-    # 提取排序后的原始名称（去掉序号前缀）
-    sorted_items = [item.split(". ", 1)[1] for item in sorted_items_with_index]
-
-    if sorted_items != items:
-        if param_type == "water":
-            config_manager.set_water_params(sorted_items)
-        else:
-            config_manager.set_feature_stations(sorted_items)
-        # 自动保存配置
-        config_manager.save_config()
-        # 增加版本号，强制 sort_items 组件刷新以显示新序号
-        st.session_state[version_key] += 1
-        st.rerun()
-
-    st.divider()
-
-    # 添加新项
-    new_item = st.text_input(add_label, placeholder=add_placeholder, key=input_key)
-
-    def add_item():
-        value = st.session_state.get(input_key, "").strip()
-        if not value:
-            return
-        current = (
-            config_manager.get_water_params()
-            if param_type == "water"
-            else config_manager.get_feature_stations()
-        )
-        if value not in current:
-            current.append(value)
-            if param_type == "water":
-                config_manager.set_water_params(current)
-            else:
-                config_manager.set_feature_stations(current)
-            # 自动保存配置
-            config_manager.save_config()
-            # 增加版本号，强制 sort_items 组件刷新
-            st.session_state[version_key] = st.session_state.get(version_key, 0) + 1
-            # 清空输入框
-            st.session_state[input_key] = ""
-
-    if st.button("➕ 添加", key=f"btn_add_{param_type}", on_click=add_item):
-        st.rerun()
-
-    # 删除项
-    st.markdown(f"**删除{'参数' if param_type == 'water' else '站点'}：**")
-    del_key = f"del_{param_type}"
-
-    def delete_item():
-        to_delete = st.session_state.get(del_key, "")
-        if not to_delete:
-            return
-        current = (
-            config_manager.get_water_params()
-            if param_type == "water"
-            else config_manager.get_feature_stations()
-        )
-        if to_delete in current:
-            current.remove(to_delete)
-            if param_type == "water":
-                config_manager.set_water_params(current)
-            else:
-                config_manager.set_feature_stations(current)
-            # 自动保存配置
-            config_manager.save_config()
-            # 增加版本号，强制 sort_items 组件刷新
-            st.session_state[version_key] = st.session_state.get(version_key, 0) + 1
-            st.session_state[del_key] = ""
-
-    st.selectbox(del_label, options=[""] + items, key=del_key, on_change=delete_item)
 
 
 # 配置Streamlit页面
@@ -440,38 +231,15 @@ class ModelFinetuneApp:
                 output_dir = st.text_input(
                     "输出目录", value="./ui_output", help="生成的模型文件保存位置"
                 )
-
-                # BIN文件格式选择
-                use_new_format = st.checkbox(
-                    "使用新格式（带版本头）",
-                    value=False,
-                    help="默认使用旧格式兼容C++。新格式包含参数配置信息，需要C++端同步更新后才能使用。",
-                )
             else:
                 model_type = None
                 output_dir = None
-                use_new_format = False
 
-            # 参数配置区域
-            if UTILS_AVAILABLE:
-                st.markdown("---")
-                with st.expander("⚙️ 参数配置", expanded=False):
-                    render_config_page()
+            # 显示固定配置信息
+            st.markdown("---")
+            st.caption("📊 固定配置: 11 个水质参数, 26 个特征站点")
 
-                # 配置状态显示
-                st.markdown("---")
-                try:
-                    config_manager = ConfigurationManager()
-                    water_params_count = len(config_manager.get_water_params())
-                    feature_stations_count = len(config_manager.get_feature_stations())
-                    st.caption(
-                        f"📊 当前配置: {water_params_count} 个参数, {feature_stations_count} 个特征"
-                    )
-                except Exception:
-                    # 如果配置管理器不可用，显示默认值
-                    st.caption("📊 当前配置: 11 个参数, 26 个特征")
-
-            return app_mode, model_type, output_dir, use_new_format
+            return app_mode, model_type, output_dir
 
     def render_file_upload_section(self, model_type: int):
         """渲染文件上传区域"""
@@ -943,7 +711,6 @@ class ModelFinetuneApp:
         uploaded_files: dict,
         model_type: int,
         output_dir: str,
-        use_new_format: bool = False,
     ):
         """处理上传的文件"""
         try:
@@ -981,8 +748,7 @@ class ModelFinetuneApp:
                 result = self.processor.process_user_data(processed_data, model_type)
 
                 if result:
-                    # 加密保存（根据用户选择的格式）
-                    self.encryptor.use_new_format = use_new_format
+                    # 加密保存
                     encrypted_path = self.encryptor.encrypt_and_save(result, output_dir)
 
                     if encrypted_path:
@@ -1045,11 +811,11 @@ class ModelFinetuneApp:
         self.render_header()
 
         # 获取配置
-        app_mode, model_type, output_dir, use_new_format = self.render_sidebar()
+        app_mode, model_type, output_dir = self.render_sidebar()
 
         if app_mode == "encrypt":
             # 加密模式：CSV → BIN
-            self.render_encrypt_mode(model_type, output_dir, use_new_format)
+            self.render_encrypt_mode(model_type, output_dir)
         else:
             # 解密模式：BIN → CSV
             self.render_decrypt_mode()
@@ -1057,7 +823,10 @@ class ModelFinetuneApp:
         # 渲染页脚
         self.render_footer()
 
-    def render_encrypt_mode(self, model_type, output_dir, use_new_format=False):
+        # 渲染日志面板（在侧边栏底部）
+        self.render_log_panel()
+
+    def render_encrypt_mode(self, model_type, output_dir):
         """渲染加密模式界面"""
         # 文件上传区域
         uploaded_files = self.render_file_upload_section(model_type)
@@ -1066,7 +835,7 @@ class ModelFinetuneApp:
         if st.button("🚀 开始处理", type="primary", use_container_width=True):
             if self.validate_uploaded_files(uploaded_files, model_type):
                 result_path = self.process_uploaded_files(
-                    uploaded_files, model_type, output_dir, use_new_format
+                    uploaded_files, model_type, output_dir
                 )
                 if result_path:
                     st.session_state.processing_complete = True
@@ -1100,6 +869,61 @@ class ModelFinetuneApp:
         """,
             unsafe_allow_html=True,
         )
+
+    def render_log_panel(self):
+        """渲染日志面板"""
+        with st.sidebar:
+            st.markdown("---")
+            with st.expander("📋 运行日志", expanded=False):
+                # 日志级别过滤
+                level_filter = st.selectbox(
+                    "日志级别",
+                    options=["ALL", "DEBUG", "INFO", "WARNING", "ERROR"],
+                    index=0,
+                    key="log_level_filter",
+                )
+
+                # 获取过滤后的日志
+                logs = StreamlitLogHandler.get_logs_by_level(
+                    None if level_filter == "ALL" else level_filter
+                )
+
+                # 清空日志按钮
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("🗑️ 清空", key="clear_logs", use_container_width=True):
+                        StreamlitLogHandler.clear_logs()
+                        st.rerun()
+                with col2:
+                    st.caption(f"共 {len(logs)} 条")
+
+                # 显示日志
+                if logs:
+                    # 日志样式
+                    level_colors = {
+                        "DEBUG": "#888888",
+                        "INFO": "#2196F3",
+                        "WARNING": "#FF9800",
+                        "ERROR": "#F44336",
+                        "CRITICAL": "#9C27B0",
+                    }
+
+                    # 显示最近的日志（倒序，最新在前）
+                    log_html = "<div style='font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto;'>"
+                    for log in reversed(logs[-100:]):  # 最多显示100条
+                        color = level_colors.get(log["level"], "#666666")
+                        log_html += (
+                            f"<div style='margin: 2px 0; padding: 2px 4px; "
+                            f"border-left: 3px solid {color}; background: #f5f5f5;'>"
+                            f"<span style='color: #999;'>{log['time']}</span> "
+                            f"<span style='color: {color}; font-weight: bold;'>[{log['level']}]</span> "
+                            f"<span style='color: #333;'>{log['msg']}</span>"
+                            f"</div>"
+                        )
+                    log_html += "</div>"
+                    st.markdown(log_html, unsafe_allow_html=True)
+                else:
+                    st.info("暂无日志记录")
 
 
 if __name__ == "__main__":

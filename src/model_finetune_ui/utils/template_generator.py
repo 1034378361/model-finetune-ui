@@ -8,7 +8,21 @@ import io
 
 import pandas as pd
 
-from .config_manager import ConfigurationManager
+# 固定默认配置
+DEFAULT_WATER_PARAMS = [
+    "turbidity",
+    "ss",
+    "sd",
+    "do",
+    "codmn",
+    "codcr",
+    "chla",
+    "tn",
+    "tp",
+    "chroma",
+    "nh3n",
+]
+DEFAULT_FEATURE_STATIONS = [f"STZ{i}" for i in range(1, 27)]
 
 
 class TemplateGenerator:
@@ -19,9 +33,9 @@ class TemplateGenerator:
     """
 
     def __init__(self):
-        config_manager = ConfigurationManager()
-        self.water_params = config_manager.get_water_params()
-        self.stations = config_manager.get_feature_stations()
+        # 使用固定默认值
+        self.water_params = DEFAULT_WATER_PARAMS.copy()
+        self.stations = DEFAULT_FEATURE_STATIONS.copy()
 
     def generate_coefficient_template(self, coeff_type: str) -> bytes:
         """

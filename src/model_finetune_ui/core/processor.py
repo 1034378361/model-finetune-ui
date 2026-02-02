@@ -11,9 +11,23 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from src.model_finetune_ui.utils.config_manager import ConfigurationManager
-
 logger = logging.getLogger(__name__)
+
+# 固定默认配置
+DEFAULT_WATER_PARAMS = [
+    "turbidity",
+    "ss",
+    "sd",
+    "do",
+    "codmn",
+    "codcr",
+    "chla",
+    "tn",
+    "tp",
+    "chroma",
+    "nh3n",
+]
+DEFAULT_FEATURE_STATIONS = [f"STZ{i}" for i in range(1, 27)]
 
 
 class ModelProcessor:
@@ -24,10 +38,9 @@ class ModelProcessor:
     """
 
     def __init__(self):
-        # 从配置管理器获取默认参数
-        config_manager = ConfigurationManager()
-        self.default_water_quality_params = config_manager.get_water_params()
-        self.default_feature_stations = config_manager.get_feature_stations()
+        # 使用固定默认值
+        self.default_water_quality_params = DEFAULT_WATER_PARAMS.copy()
+        self.default_feature_stations = DEFAULT_FEATURE_STATIONS.copy()
 
     def process_user_data(
         self, processed_data: dict[str, pd.DataFrame], model_type: int

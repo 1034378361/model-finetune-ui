@@ -17,6 +17,22 @@ from .utils import EnhancedLogger, performance_monitor
 
 logger = logging.getLogger(__name__)
 
+# 固定默认配置
+DEFAULT_WATER_PARAMS = [
+    "turbidity",
+    "ss",
+    "sd",
+    "do",
+    "codmn",
+    "codcr",
+    "chla",
+    "tn",
+    "tp",
+    "chroma",
+    "nh3n",
+]
+DEFAULT_FEATURE_STATIONS = [f"STZ{i}" for i in range(1, 27)]
+
 
 class DataValidator:
     """数据验证器，用于验证用户上传数据的格式和内容。
@@ -26,12 +42,9 @@ class DataValidator:
     """
 
     def __init__(self):
-        from .config_manager import ConfigurationManager
-
-        # 从配置管理器获取参数
-        config_manager = ConfigurationManager()
-        self.standard_water_params = config_manager.get_water_params()
-        self.standard_stations = config_manager.get_feature_stations()
+        # 使用固定默认值
+        self.standard_water_params = DEFAULT_WATER_PARAMS.copy()
+        self.standard_stations = DEFAULT_FEATURE_STATIONS.copy()
 
     @property
     def expected_water_params(self) -> list[str]:

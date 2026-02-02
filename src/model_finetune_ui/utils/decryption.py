@@ -3,24 +3,21 @@
 解密管理器
 
 用于解密bin文件并解析出参数，支持保存为CSV格式
+格式：[IV 16字节][加密数据] - 兼容C++
+维度从解密后的数据自动反推
 """
 
 import json
 import logging
 import io
-import struct
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
 from .utils import ConfigManager, EnhancedLogger, performance_monitor
 
 logger = logging.getLogger(__name__)
-
-# BIN 文件格式常量
-BIN_MAGIC = b"MFUI"
-BIN_VERSION = 2
 
 
 class DecryptionManager:
@@ -45,8 +42,8 @@ class DecryptionManager:
             "chroma",
             "nh3n",
         ]
-        # 特征站点将根据数据动态推断
-        self._default_feature_stations = None
+        # 特征站点默认26个（向后兼容），解密时会根据数据动态调整
+        self._default_feature_stations = [f"STZ{i}" for i in range(1, 27)]
         # 从文件中检测到的配置
         self._detected_config: dict[str, Any] | None = None
 
@@ -69,76 +66,12 @@ class DecryptionManager:
         """设置特征站点列表"""
         self._default_feature_stations = value
 
-    def _detect_file_format(
-        self, file_data: bytes
-    ) -> tuple[bool, dict[str, Any] | None, bytes]:
-        """
-        检测文件格式并提取配置
-
-        Args:
-            file_data: 原始文件字节数据
-
-        Returns:
-            (is_new_format, config_dict, encrypted_data)
-            - is_new_format: 是否为新格式
-            - config_dict: 配置字典（新格式）或None（旧格式）
-            - encrypted_data: 加密数据部分
-        """
-        try:
-            # 检查魔数
-            if len(file_data) >= 4 and file_data[:4] == BIN_MAGIC:
-                logger.info("🔍 检测到新格式BIN文件（带版本头）")
-
-                # 读取版本号
-                if len(file_data) < 6:
-                    logger.error("文件过短，无法读取版本号")
-                    return False, None, file_data
-
-                version = struct.unpack(">H", file_data[4:6])[0]
-                logger.info(f"📌 文件版本: {version}")
-
-                # 读取配置JSON长度
-                if len(file_data) < 10:
-                    logger.error("文件过短，无法读取配置长度")
-                    return False, None, file_data
-
-                config_len = struct.unpack(">I", file_data[6:10])[0]
-                logger.info(f"📏 配置JSON长度: {config_len} bytes")
-
-                # 读取配置JSON
-                if len(file_data) < 10 + config_len:
-                    logger.error(
-                        f"文件过短，无法读取完整配置（需要{10 + config_len} bytes，实际{len(file_data)} bytes）"
-                    )
-                    return False, None, file_data
-
-                config_json = file_data[10 : 10 + config_len].decode("utf-8")
-                config = json.loads(config_json)
-                logger.info(
-                    f"✅ 成功解析配置: {len(config.get('water_params', []))}个水质参数, {len(config.get('feature_stations', []))}个特征站点"
-                )
-
-                # 提取加密数据
-                encrypted_data = file_data[10 + config_len :]
-                logger.info(f"📦 加密数据长度: {len(encrypted_data)} bytes")
-
-                return True, config, encrypted_data
-            else:
-                # 旧格式，使用默认配置
-                logger.info("🔍 检测到旧格式BIN文件（无版本头）")
-                return False, None, file_data
-
-        except Exception as e:
-            logger.error(f"❌ 文件格式检测失败: {str(e)}")
-            return False, None, file_data
-
     def get_decryption_config(self) -> Dict[str, Any]:
         """获取解密配置"""
         try:
             return ConfigManager.get_encryption_config()
         except Exception as e:
             logger.error(f"无法获取解密配置: {e}")
-            # 提供默认配置
             return {
                 "password": "default_password",
                 "salt": "default_salt",
@@ -171,77 +104,56 @@ class DecryptionManager:
             file_size = validation_result.get("size", 0)
             logger.info(f"✅ 文件验证通过: {bin_file_path} ({file_size:,} bytes)")
 
-            # 步骤2：读取文件并检测格式
-            logger.info("🔍 步骤2/5: 检测文件格式...")
+            # 步骤2：读取文件
+            logger.info("🔍 步骤2/4: 读取文件...")
             with open(bin_file_path, "rb") as f:
                 file_data = f.read()
-
-            is_new_format, detected_config, encrypted_data = self._detect_file_format(
-                file_data
-            )
-
-            if is_new_format and detected_config:
-                # 新格式：使用文件中的配置
-                self._detected_config = detected_config
-                logger.info("✅ 使用文件中的配置信息")
-            else:
-                # 旧格式：使用默认配置
-                self._detected_config = None
-                logger.info("✅ 使用默认配置信息")
+            logger.info(f"📦 文件数据长度: {len(file_data)} bytes")
 
             # 步骤3：获取解密配置
-            logger.info("🔧 步骤3/5: 获取解密配置...")
+            logger.info("🔧 步骤3/4: 获取解密配置...")
             decryption_config = self.get_decryption_config()
             logger.info("✅ 解密配置已加载")
 
             # 步骤4：执行解密
-            logger.info("🔓 步骤4/5: 执行BIN文件解密...")
-            try:
-                # 首先尝试使用外部解密函数
-                from autowaterqualitymodeler.utils.encryption import decrypt_file
+            logger.info("🔓 步骤4/4: 执行BIN文件解密...")
+            decrypted_data = self._decrypt_with_local_module(
+                file_data, decryption_config
+            )
 
-                decrypted_result = decrypt_file(bin_file_path)
-                if decrypted_result:
-                    # 检查返回的是字典还是字符串
-                    if isinstance(decrypted_result, dict):
-                        decrypted_data = decrypted_result
-                        logger.info("✅ 解密成功 (返回字典格式)")
-                    elif isinstance(decrypted_result, str):
-                        import json
+            if not decrypted_data:
+                # 尝试外部解密函数
+                try:
+                    from autowaterqualitymodeler.utils.encryption import decrypt_file
 
-                        decrypted_data = json.loads(decrypted_result)
-                        logger.info("✅ 解密成功 (JSON字符串已解析)")
-                    else:
-                        logger.error(f"❌ 未知的解密结果类型: {type(decrypted_result)}")
-                        decrypted_data = None
-                else:
-                    logger.error("❌ 解密函数返回空结果")
-                    decrypted_data = None
-            except ImportError:
-                # 如果外部函数不可用，使用简化解密
-                logger.warning("⚠️ 外部解密函数不可用，尝试简化解密")
-                decrypted_data = self._simple_decrypt(bin_file_path)
+                    logger.info("尝试使用外部解密函数...")
+                    decrypted_result = decrypt_file(bin_file_path)
+                    if decrypted_result:
+                        if isinstance(decrypted_result, dict):
+                            decrypted_data = decrypted_result
+                        elif isinstance(decrypted_result, str):
+                            decrypted_data = json.loads(decrypted_result)
+                        logger.info("✅ 外部解密成功")
+                except ImportError:
+                    logger.warning("⚠️ 外部解密函数不可用")
 
             if decrypted_data:
-                # 步骤5：验证和分析解密数据
-                logger.info("🔍 步骤5/5: 验证解密数据结构...")
+                # 从数据反推维度并设置配置
+                self._infer_dimensions_from_data(decrypted_data)
+
+                # 验证解密数据
                 validation_result = self._validate_decrypted_data(decrypted_data)
                 if not validation_result["valid"]:
                     logger.error(f"❌ 解密数据验证失败: {validation_result['error']}")
                     return None
 
-                # 显示解密结果摘要
                 model_type = decrypted_data.get("type", "未知")
                 feature_count = (
                     len(self.feature_stations) if self.feature_stations else 0
                 )
-
                 logger.info("🎉 BIN文件解密完成！")
                 logger.info(
                     f"📊 模型信息: Type {model_type} ({feature_count}特征×{len(self.water_params)}参数)"
-                )
-                logger.info(
-                    f"📁 数据结构: {len([k for k, v in decrypted_data.items() if isinstance(v, list)])}个数据数组"
                 )
 
                 return decrypted_data
@@ -251,6 +163,70 @@ class DecryptionManager:
 
         except Exception as e:
             logger.error(f"❌ 解密过程中发生错误: {str(e)}")
+            return None
+
+    def _decrypt_with_local_module(
+        self, encrypted_data: bytes, config: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """使用本地加密模块解密数据
+
+        Args:
+            encrypted_data: 加密数据（包含IV前缀）
+            config: 解密配置（password, salt, iv）
+
+        Returns:
+            解密后的数据字典，失败返回None
+        """
+        try:
+            from cryptography.hazmat.primitives import hashes, padding
+            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+            # 获取配置参数
+            password = config.get("password", "water_quality_analysis_key")
+            salt = config.get("salt", "water_quality_salt")
+
+            # 转换为字节
+            if isinstance(password, str):
+                password = password.encode("utf-8")
+            if isinstance(salt, str):
+                salt = salt.encode("utf-8")
+
+            # 从加密数据中提取IV（前16字节）
+            if len(encrypted_data) < 16:
+                logger.error("加密数据过短，无法提取IV")
+                return None
+
+            iv = encrypted_data[:16]
+            ciphertext = encrypted_data[16:]
+
+            logger.info(f"📦 IV长度: {len(iv)}, 密文长度: {len(ciphertext)}")
+
+            # 生成密钥
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                iterations=100000,
+            )
+            key = kdf.derive(password)
+
+            # 解密
+            cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+            decryptor = cipher.decryptor()
+            decrypted_padded = decryptor.update(ciphertext) + decryptor.finalize()
+
+            # 移除PKCS7填充
+            unpadder = padding.PKCS7(128).unpadder()
+            decrypted_data = unpadder.update(decrypted_padded) + unpadder.finalize()
+
+            # 解析JSON
+            result = json.loads(decrypted_data.decode("utf-8"))
+            logger.info("✅ 本地解密成功")
+            return result
+
+        except Exception as e:
+            logger.error(f"❌ 本地解密失败: {str(e)}")
             return None
 
     def _simple_decrypt(self, file_path: str) -> Optional[Dict[str, Any]]:
@@ -599,60 +575,108 @@ class DecryptionManager:
         except Exception as e:
             return {"valid": False, "error": f"文件路径验证异常: {str(e)}"}
 
-    def _infer_feature_count(self, data: Dict[str, Any]) -> int:
-        """从数据中智能推断特征数量"""
+    def _infer_dimensions_from_data(self, data: Dict[str, Any]) -> None:
+        """从解密数据反推维度并设置配置"""
+        param_count, feature_count = self._infer_dimensions(data)
+
+        # 生成参数名和站点名
+        if param_count != len(self._default_water_params):
+            self._detected_config = {
+                "water_params": [f"param_{i + 1}" for i in range(param_count)],
+                "feature_stations": [f"STZ{i + 1}" for i in range(feature_count)],
+            }
+            logger.info(f"📐 反推维度: {param_count}参数 × {feature_count}特征")
+        else:
+            self._detected_config = {
+                "water_params": self._default_water_params,
+                "feature_stations": [f"STZ{i + 1}" for i in range(feature_count)],
+            }
+            logger.info(f"📐 使用默认参数名，{feature_count}个特征站点")
+
+    def _infer_dimensions(self, data: Dict[str, Any]) -> tuple[int, int]:
+        """
+        从数据中自适应推断指标数和特征数
+
+        策略：
+        1. 用A参数长度确定指标数（A长度 = 指标数）
+        2. 用w或a系数长度除以指标数得到特征数
+        3. 验证其他系数是否一致
+
+        Args:
+            data: 解密后的数据字典
+
+        Returns:
+            (param_count, feature_count) 指标数和特征数
+        """
         try:
-            logger.info("🔍 智能分析特征配置...")
-            param_count = len(self.water_params)
+            logger.info("🔍 自适应推断数据维度...")
 
             # 分析各系数数组长度
             coeff_info = {}
             for key, value in data.items():
-                if isinstance(value, list) and key != "Range":
+                if isinstance(value, list):
                     coeff_info[key] = len(value)
-
             logger.info(f"📊 发现系数数组: {coeff_info}")
 
-            # 从w或a系数推断特征数量
+            # 步骤1: 从A参数确定指标数
+            if "A" not in data or not isinstance(data["A"], list):
+                logger.warning("⚠️ 未找到A参数，使用默认指标数11")
+                param_count = 11
+            else:
+                param_count = len(data["A"])
+                logger.info(f"✅ 从A参数推断指标数: {param_count}个")
+
+            # 步骤2: 从w或a系数推断特征数
+            feature_count = None
             for coeff_key in ["w", "a"]:
                 if coeff_key in data and isinstance(data[coeff_key], list):
                     coeff_length = len(data[coeff_key])
-
-                    # 检查是否能被参数数量整除
                     if coeff_length % param_count == 0:
                         feature_count = coeff_length // param_count
                         logger.info(
-                            f"✅ 从{coeff_key}系数推断特征数量: {feature_count}个"
+                            f"✅ 从{coeff_key}系数推断特征数: {feature_count}个"
                         )
                         logger.info(
-                            f"📐 计算: {coeff_length} ÷ {param_count} = {feature_count} (特征×参数)"
+                            f"📐 计算: {coeff_length} ÷ {param_count} = {feature_count}"
+                        )
+                        break
+                    else:
+                        logger.warning(
+                            f"⚠️ {coeff_key}系数长度{coeff_length}不能被指标数{param_count}整除"
                         )
 
-                        # 验证其他系数是否一致
-                        self._validate_feature_consistency(
-                            data, feature_count, param_count
-                        )
-                        return feature_count
-
-            # 如果无法从w/a推断，尝试从b系数推断
-            if "b" in data and isinstance(data["b"], list):
+            # 步骤3: 如果w/a都没有，尝试从b推断
+            if feature_count is None and "b" in data and isinstance(data["b"], list):
                 b_length = len(data["b"])
-
                 if b_length % param_count == 0:
                     feature_count = b_length // param_count
-                    logger.info(f"✅ 从b系数推断特征数量: {feature_count}个")
-                    logger.info(
-                        f"📐 计算: {b_length} ÷ {param_count} = {feature_count} (参数×特征)"
-                    )
-                    return feature_count
+                    logger.info(f"✅ 从b系数推断特征数: {feature_count}个")
 
-            # 默认返回26（向后兼容）
-            logger.warning("⚠️ 无法推断特征数量，使用默认值26")
-            return 26
+            # 步骤4: 如果还是无法推断，使用默认值
+            if feature_count is None:
+                feature_count = 26
+                logger.warning(f"⚠️ 无法推断特征数，使用默认值{feature_count}")
+
+            # 验证Range数据一致性
+            if "Range" in data and isinstance(data["Range"], list):
+                range_length = len(data["Range"])
+                expected_range = param_count * 2
+                if range_length != expected_range:
+                    logger.warning(
+                        f"⚠️ Range长度{range_length}与期望{expected_range}不一致"
+                    )
+
+            logger.info(f"📐 最终维度: {param_count}个指标 × {feature_count}个特征")
+            return param_count, feature_count
 
         except Exception as e:
-            logger.error(f"❌ 推断特征数量时出错: {str(e)}，使用默认值26")
-            return 26
+            logger.error(f"❌ 推断维度时出错: {str(e)}，使用默认值")
+            return 11, 26
+
+    def _infer_feature_count(self, data: Dict[str, Any]) -> int:
+        """从数据中智能推断特征数量（向后兼容接口）"""
+        _, feature_count = self._infer_dimensions(data)
+        return feature_count
 
     def _validate_feature_consistency(
         self, data: Dict[str, Any], feature_count: int, param_count: int
@@ -711,24 +735,146 @@ class DecryptionManager:
             if model_type not in [0, 1]:
                 return {"valid": False, "error": f"不支持的模型类型: {model_type}"}
 
-            # 智能推断特征数量并动态设置
-            feature_count = self._infer_feature_count(data)
+            # 自适应推断指标数和特征数
+            param_count, feature_count = self._infer_dimensions(data)
+
+            # 动态生成水质参数名（如果从数据推断的数量与默认不同）
+            if param_count != len(self._default_water_params):
+                # 生成通用参数名 param_1, param_2, ...
+                self._default_water_params = [
+                    f"param_{i}" for i in range(1, param_count + 1)
+                ]
+                logger.info(
+                    f"动态生成水质参数名: {param_count}个 (param_1-param_{param_count})"
+                )
+
+            # 动态设置特征站点
             self.feature_stations = [f"STZ{i}" for i in range(1, feature_count + 1)]
             logger.info(
-                f"动态设置特征站点: {len(self.feature_stations)}个 (STZ1-STZ{feature_count})"
+                f"动态设置特征站点: {feature_count}个 (STZ1-STZ{feature_count})"
             )
 
-            # 根据模型类型验证必需字段
+            # 根据模型类型验证必需字段（使用自适应维度）
             if model_type == 0:
-                return self._validate_type_0_data(data)
+                return self._validate_type_0_data_adaptive(data, param_count)
             elif model_type == 1:
-                return self._validate_type_1_data(data)
+                return self._validate_type_1_data_adaptive(
+                    data, param_count, feature_count
+                )
 
         except Exception as e:
             return {"valid": False, "error": f"数据结构验证异常: {str(e)}"}
 
+    def _validate_type_0_data_adaptive(
+        self, data: Dict[str, Any], param_count: int
+    ) -> Dict[str, Any]:
+        """自适应验证Type 0数据结构"""
+        required_fields = ["A", "Range"]
+        missing_fields = [f for f in required_fields if f not in data]
+
+        if missing_fields:
+            return {
+                "valid": False,
+                "error": f"Type 0模式缺少必需字段: {missing_fields}",
+            }
+
+        # 验证A系数（长度应等于param_count）
+        a_values = data["A"]
+        if not isinstance(a_values, list):
+            return {
+                "valid": False,
+                "error": f"A系数必须是列表格式，当前类型: {type(a_values)}",
+            }
+
+        if len(a_values) != param_count:
+            return {
+                "valid": False,
+                "error": f"A系数长度不匹配: 期望{param_count}, 实际{len(a_values)}",
+            }
+
+        # 验证A系数值类型
+        for i, val in enumerate(a_values):
+            if not isinstance(val, (int, float)):
+                return {"valid": False, "error": f"A系数[{i}]不是数字类型: {type(val)}"}
+
+        # 验证Range数据（长度应等于param_count * 2）
+        range_values = data["Range"]
+        if not isinstance(range_values, list):
+            return {
+                "valid": False,
+                "error": f"Range数据必须是列表格式，当前类型: {type(range_values)}",
+            }
+
+        expected_range_length = param_count * 2
+        if len(range_values) != expected_range_length:
+            return {
+                "valid": False,
+                "error": f"Range数据长度不匹配: 期望{expected_range_length}, 实际{len(range_values)}",
+            }
+
+        # 验证Range值类型
+        for i, val in enumerate(range_values):
+            if not isinstance(val, (int, float)):
+                return {
+                    "valid": False,
+                    "error": f"Range数据[{i}]不是数字类型: {type(val)}",
+                }
+
+        logger.info(f"✅ Type 0数据验证通过: {param_count}个指标")
+        return {"valid": True}
+
+    def _validate_type_1_data_adaptive(
+        self, data: Dict[str, Any], param_count: int, feature_count: int
+    ) -> Dict[str, Any]:
+        """自适应验证Type 1数据结构"""
+        required_fields = ["w", "a", "b", "A", "Range"]
+        missing_fields = [f for f in required_fields if f not in data]
+
+        if missing_fields:
+            return {
+                "valid": False,
+                "error": f"Type 1模式缺少必需字段: {missing_fields}",
+            }
+
+        # 使用自适应维度计算期望长度
+        expected_sizes = {
+            "w": feature_count * param_count,
+            "a": feature_count * param_count,
+            "b": param_count * feature_count,
+            "A": param_count,
+            "Range": param_count * 2,
+        }
+
+        for field, expected_size in expected_sizes.items():
+            field_data = data[field]
+
+            if not isinstance(field_data, list):
+                return {
+                    "valid": False,
+                    "error": f"{field}系数必须是列表格式，当前类型: {type(field_data)}",
+                }
+
+            if len(field_data) != expected_size:
+                return {
+                    "valid": False,
+                    "error": f"{field}系数长度不匹配: 期望{expected_size}, 实际{len(field_data)}",
+                }
+
+            # 验证数值类型
+            for i, val in enumerate(field_data):
+                if not isinstance(val, (int, float)):
+                    return {
+                        "valid": False,
+                        "error": f"{field}系数[{i}]不是数字类型: {type(val)}",
+                    }
+
+        logger.info(
+            f"✅ Type 1数据验证通过: {param_count}个指标 × {feature_count}个特征"
+        )
+        return {"valid": True}
+
     def _validate_type_0_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """验证Type 0数据结构"""
+        """验证Type 0数据结构（向后兼容）"""
         required_fields = ["A", "Range"]
         missing_fields = []
 

@@ -27,12 +27,12 @@ class TestTemplateGenerator:
         template_bytes = generator.generate_coefficient_template("w")
         assert isinstance(template_bytes, bytes)
 
-        # 将bytes转换为DataFrame验证
+        # w模板：特征(26) × 水质参数(11)
         df = pd.read_csv(io.BytesIO(template_bytes), index_col=0)
-        assert df.shape == (11, 26)
-        assert list(df.index) == generator.water_params
-        assert list(df.columns) == generator.stations
-        assert (df == 0.0).all().all()  # 默认值应该是0
+        assert df.shape == (26, 11)
+        assert list(df.index) == generator.stations
+        assert list(df.columns) == generator.water_params
+        assert (df == 0.0).all().all()
 
     def test_generate_coefficient_template_a(self):
         """测试生成a系数模板"""
@@ -41,9 +41,10 @@ class TestTemplateGenerator:
         template_bytes = generator.generate_coefficient_template("a")
         df = pd.read_csv(io.BytesIO(template_bytes), index_col=0)
 
-        assert df.shape == (11, 26)
-        assert list(df.index) == generator.water_params
-        assert list(df.columns) == generator.stations
+        # a模板：特征(26) × 水质参数(11)
+        assert df.shape == (26, 11)
+        assert list(df.index) == generator.stations
+        assert list(df.columns) == generator.water_params
 
     def test_generate_coefficient_template_b(self):
         """测试生成b系数模板"""
@@ -52,6 +53,7 @@ class TestTemplateGenerator:
         template_bytes = generator.generate_coefficient_template("b")
         df = pd.read_csv(io.BytesIO(template_bytes), index_col=0)
 
+        # b模板：水质参数(11) × 特征(26)
         assert df.shape == (11, 26)
         assert list(df.index) == generator.water_params
         assert list(df.columns) == generator.stations
@@ -66,6 +68,7 @@ class TestTemplateGenerator:
         assert df.shape == (11, 1)
         assert list(df.index) == generator.water_params
         assert list(df.columns) == ["A"]
+        assert (df == -1.0).all().all()  # A系数默认值是-1
 
     def test_generate_range_template(self):
         """测试生成Range模板"""
@@ -98,8 +101,9 @@ class TestTemplateGenerator:
         assert "w" in required
         assert "a" in required
         assert "b" in required
+        assert "A" in required
         assert "Range" in required
-        assert len(required) == 4
+        assert len(required) == 5
 
     def test_get_template_info(self):
         """测试获取模板信息"""
