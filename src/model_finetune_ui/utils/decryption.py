@@ -609,53 +609,64 @@ class DecryptionManager:
             (param_count, feature_count) 指标数和特征数
         """
         try:
-            logger.info("🔍 自适应推断数据维度...")
+            logger.info("=" * 50)
+            logger.info("🔍 [维度推断] 开始自适应推断数据维度...")
 
             # 分析各系数数组长度
             coeff_info = {}
             for key, value in data.items():
                 if isinstance(value, list):
                     coeff_info[key] = len(value)
-            logger.info(f"📊 发现系数数组: {coeff_info}")
+            logger.info(f"📊 [维度推断] 原始数据长度: {coeff_info}")
 
             # 步骤1: 从A参数确定指标数
             if "A" not in data or not isinstance(data["A"], list):
-                logger.warning("⚠️ 未找到A参数，使用默认指标数11")
+                logger.warning("⚠️ [维度推断] 未找到A参数，使用默认指标数11")
                 param_count = 11
             else:
                 param_count = len(data["A"])
-                logger.info(f"✅ 从A参数推断指标数: {param_count}个")
+                logger.info(
+                    f"✅ [维度推断] 从A参数推断指标数: {param_count}个 (A长度={param_count})"
+                )
 
             # 步骤2: 从w或a系数推断特征数
             feature_count = None
             for coeff_key in ["w", "a"]:
                 if coeff_key in data and isinstance(data[coeff_key], list):
                     coeff_length = len(data[coeff_key])
+                    logger.info(
+                        f"📐 [维度推断] 尝试从{coeff_key}推断: 长度={coeff_length}, 指标数={param_count}"
+                    )
                     if coeff_length % param_count == 0:
                         feature_count = coeff_length // param_count
                         logger.info(
-                            f"✅ 从{coeff_key}系数推断特征数: {feature_count}个"
+                            f"✅ [维度推断] 从{coeff_key}系数推断特征数: {feature_count}个"
                         )
                         logger.info(
-                            f"📐 计算: {coeff_length} ÷ {param_count} = {feature_count}"
+                            f"📐 [维度推断] 计算公式: {coeff_length} ÷ {param_count} = {feature_count}"
                         )
                         break
                     else:
                         logger.warning(
-                            f"⚠️ {coeff_key}系数长度{coeff_length}不能被指标数{param_count}整除"
+                            f"⚠️ [维度推断] {coeff_key}系数长度{coeff_length}不能被指标数{param_count}整除"
                         )
 
             # 步骤3: 如果w/a都没有，尝试从b推断
             if feature_count is None and "b" in data and isinstance(data["b"], list):
                 b_length = len(data["b"])
+                logger.info(
+                    f"📐 [维度推断] 尝试从b推断: 长度={b_length}, 指标数={param_count}"
+                )
                 if b_length % param_count == 0:
                     feature_count = b_length // param_count
-                    logger.info(f"✅ 从b系数推断特征数: {feature_count}个")
+                    logger.info(f"✅ [维度推断] 从b系数推断特征数: {feature_count}个")
 
             # 步骤4: 如果还是无法推断，使用默认值
             if feature_count is None:
                 feature_count = 26
-                logger.warning(f"⚠️ 无法推断特征数，使用默认值{feature_count}")
+                logger.warning(
+                    f"⚠️ [维度推断] 无法从数据推断特征数，使用默认值: {feature_count}"
+                )
 
             # 验证Range数据一致性
             if "Range" in data and isinstance(data["Range"], list):
@@ -663,14 +674,17 @@ class DecryptionManager:
                 expected_range = param_count * 2
                 if range_length != expected_range:
                     logger.warning(
-                        f"⚠️ Range长度{range_length}与期望{expected_range}不一致"
+                        f"⚠️ [维度推断] Range长度{range_length}与期望{expected_range}不一致"
                     )
 
-            logger.info(f"📐 最终维度: {param_count}个指标 × {feature_count}个特征")
+            logger.info(
+                f"🎯 [维度推断] 最终结果: {param_count}个指标 × {feature_count}个特征"
+            )
+            logger.info("=" * 50)
             return param_count, feature_count
 
         except Exception as e:
-            logger.error(f"❌ 推断维度时出错: {str(e)}，使用默认值")
+            logger.error(f"❌ [维度推断] 推断维度时出错: {str(e)}，使用默认值")
             return 11, 26
 
     def _infer_feature_count(self, data: Dict[str, Any]) -> int:

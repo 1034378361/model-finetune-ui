@@ -481,7 +481,21 @@ class ModelFinetuneApp:
             status_text.info("🔓 步骤2/4: 解密BIN文件...")
             progress_bar.progress(50)
 
+            # 清空之前的日志，便于查看本次解密日志
+            StreamlitLogHandler.clear_logs()
+
             decrypted_data = self.decryptor.decrypt_bin_file(str(temp_path))
+
+            # 显示维度推断日志
+            with info_container:
+                st.markdown("**📋 维度推断日志:**")
+                logs = StreamlitLogHandler.get_logs()
+                dimension_logs = [log for log in logs if "[维度推断]" in log["msg"]]
+                if dimension_logs:
+                    log_text = "\n".join([f"{log['msg']}" for log in dimension_logs])
+                    st.code(log_text, language=None)
+                else:
+                    st.warning("未捕获到维度推断日志")
 
             if not decrypted_data:
                 status_text.error("❌ BIN文件解密失败")
@@ -874,7 +888,7 @@ class ModelFinetuneApp:
         """渲染日志面板"""
         with st.sidebar:
             st.markdown("---")
-            with st.expander("📋 运行日志", expanded=False):
+            with st.expander("📋 运行日志", expanded=True):
                 # 日志级别过滤
                 level_filter = st.selectbox(
                     "日志级别",
