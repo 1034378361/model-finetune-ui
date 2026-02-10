@@ -110,32 +110,44 @@ class DecryptionManager:
                 file_data = f.read()
             logger.info(f"📦 文件数据长度: {len(file_data)} bytes")
 
-            # 步骤3：获取解密配置
-            logger.info("🔧 步骤3/4: 获取解密配置...")
-            decryption_config = self.get_decryption_config()
-            logger.info("✅ 解密配置已加载")
+            # 检测文件格式
+            bin_format = self._detect_bin_format(file_data)
+            logger.info(f"📋 检测到文件格式: {bin_format}")
 
-            # 步骤4：执行解密
-            logger.info("🔓 步骤4/4: 执行BIN文件解密...")
-            decrypted_data = self._decrypt_with_local_module(
-                file_data, decryption_config
-            )
+            if bin_format == "hex_reverse":
+                # 十六进制混淆格式
+                logger.info("🔓 使用十六进制混淆方式解密...")
+                decrypted_data = self._decrypt_hex_reverse(file_data)
+            else:
+                # AES加密格式（现有逻辑）
+                # 步骤3：获取解密配置
+                logger.info("🔧 步骤3/4: 获取解密配置...")
+                decryption_config = self.get_decryption_config()
+                logger.info("✅ 解密配置已加载")
 
-            if not decrypted_data:
-                # 尝试外部解密函数
-                try:
-                    from autowaterqualitymodeler.utils.encryption import decrypt_file
+                # 步骤4：执行解密
+                logger.info("🔓 步骤4/4: 执行BIN文件解密...")
+                decrypted_data = self._decrypt_with_local_module(
+                    file_data, decryption_config
+                )
 
-                    logger.info("尝试使用外部解密函数...")
-                    decrypted_result = decrypt_file(bin_file_path)
-                    if decrypted_result:
-                        if isinstance(decrypted_result, dict):
-                            decrypted_data = decrypted_result
-                        elif isinstance(decrypted_result, str):
-                            decrypted_data = json.loads(decrypted_result)
-                        logger.info("✅ 外部解密成功")
-                except ImportError:
-                    logger.warning("⚠️ 外部解密函数不可用")
+                if not decrypted_data:
+                    # 尝试外部解密函数
+                    try:
+                        from autowaterqualitymodeler.utils.encryption import (
+                            decrypt_file,
+                        )
+
+                        logger.info("尝试使用外部解密函数...")
+                        decrypted_result = decrypt_file(bin_file_path)
+                        if decrypted_result:
+                            if isinstance(decrypted_result, dict):
+                                decrypted_data = decrypted_result
+                            elif isinstance(decrypted_result, str):
+                                decrypted_data = json.loads(decrypted_result)
+                            logger.info("✅ 外部解密成功")
+                    except ImportError:
+                        logger.warning("⚠️ 外部解密函数不可用")
 
             if decrypted_data:
                 # 从数据反推维度并设置配置
@@ -227,6 +239,44 @@ class DecryptionManager:
 
         except Exception as e:
             logger.error(f"❌ 本地解密失败: {str(e)}")
+            return None
+
+    @staticmethod
+    def _detect_bin_format(file_data: bytes) -> str:
+        """检测BIN文件格式
+
+        Args:
+            file_data: 文件原始字节数据
+
+        Returns:
+            "hex_reverse" 或 "aes"
+        """
+        try:
+            sample = file_data[:64].decode("utf-8")
+            if all(c in "0123456789abcdefABCDEF" for c in sample):
+                return "hex_reverse"
+        except (UnicodeDecodeError, ValueError):
+            pass
+        return "aes"
+
+    def _decrypt_hex_reverse(self, file_data: bytes) -> dict[str, Any] | None:
+        """解密十六进制倒序混淆格式的BIN文件
+
+        Args:
+            file_data: 文件原始字节数据
+
+        Returns:
+            解密后的数据字典，失败返回None
+        """
+        try:
+            reversed_hex = file_data.decode("utf-8")
+            hex_string = reversed_hex[::-1]
+            data_json = bytes.fromhex(hex_string).decode("utf-8")
+            result = json.loads(data_json)
+            logger.info("✅ 十六进制混淆格式解密成功")
+            return result
+        except Exception as e:
+            logger.error(f"❌ 十六进制混淆解密失败: {str(e)}")
             return None
 
     def _simple_decrypt(self, file_path: str) -> Optional[Dict[str, Any]]:
