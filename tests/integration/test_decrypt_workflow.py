@@ -139,7 +139,7 @@ class TestDecryptWorkflow:
         assert csv_files is None or csv_files == {}
 
     def test_hex_reverse_roundtrip(self, temp_dir):
-        """测试十六进制混淆格式的加密→解密往返"""
+        """测试预警器专用格式的加密→解密往返"""
         # 加密
         encryptor = EncryptionManager()
         encryptor.encryption_method = "hex_reverse"
