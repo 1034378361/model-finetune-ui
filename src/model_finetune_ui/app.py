@@ -737,6 +737,7 @@ class ModelFinetuneApp:
         uploaded_files: dict,
         model_type: int,
         output_dir: str,
+        encryption_method: str = "aes",
     ):
         """处理上传的文件"""
         try:
@@ -774,6 +775,10 @@ class ModelFinetuneApp:
                 result = self.processor.process_user_data(processed_data, model_type)
 
                 if result:
+                    # 设置加密方式
+                    if self.encryptor:
+                        self.encryptor.encryption_method = encryption_method
+
                     # 加密保存
                     encrypted_path = self.encryptor.encrypt_and_save(result, output_dir)
 
@@ -852,7 +857,7 @@ class ModelFinetuneApp:
         # 渲染日志面板（在侧边栏底部）
         self.render_log_panel()
 
-    def render_encrypt_mode(self, model_type, output_dir):
+    def render_encrypt_mode(self, model_type, output_dir, encryption_method="aes"):
         """渲染加密模式界面"""
         # 文件上传区域
         uploaded_files = self.render_file_upload_section(model_type)
@@ -861,7 +866,7 @@ class ModelFinetuneApp:
         if st.button("🚀 开始处理", type="primary", use_container_width=True):
             if self.validate_uploaded_files(uploaded_files, model_type):
                 result_path = self.process_uploaded_files(
-                    uploaded_files, model_type, output_dir
+                    uploaded_files, model_type, output_dir, encryption_method
                 )
                 if result_path:
                     st.session_state.processing_complete = True
