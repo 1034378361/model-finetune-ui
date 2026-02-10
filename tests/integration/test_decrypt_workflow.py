@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from src.model_finetune_ui.utils.decryption import DecryptionManager
+from src.model_finetune_ui.utils.encryption import EncryptionManager
 
 
 class TestDecryptWorkflow:
@@ -139,3 +140,50 @@ class TestDecryptWorkflow:
 
         csv_files = decryptor.generate_csv_files({})
         assert csv_files is None or csv_files == {}
+
+    def test_hex_reverse_roundtrip(self, temp_dir):
+        """测试十六进制混淆格式的加密→解密往返"""
+        # 加密
+        encryptor = EncryptionManager()
+        encryptor.encryption_method = "hex_reverse"
+
+        original = {
+            "type": 0,
+            "A": [-1.0, 0.5, 1.2, -0.3, 0.8, 1.5, -0.7, 0.9, 1.1, -0.4, 1.3],
+            "Range": [
+                0.5,
+                10.5,
+                2.0,
+                15.0,
+                1.0,
+                8.0,
+                3.0,
+                20.0,
+                0.8,
+                12.0,
+                2.5,
+                18.0,
+                1.5,
+                9.0,
+                4.0,
+                25.0,
+                0.3,
+                6.0,
+                3.5,
+                22.0,
+                1.8,
+                14.0,
+            ],
+        }
+
+        encrypted_path = encryptor.encrypt_and_save(original, str(temp_dir))
+        assert encrypted_path is not None
+
+        # 解密（自动检测格式）
+        decryptor = DecryptionManager()
+        decrypted = decryptor.decrypt_bin_file(encrypted_path)
+
+        assert decrypted is not None
+        assert decrypted["type"] == original["type"]
+        assert decrypted["A"] == original["A"]
+        assert decrypted["Range"] == original["Range"]

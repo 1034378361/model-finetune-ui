@@ -29,6 +29,7 @@ class EncryptionManager:
     def __init__(self):
         """初始化加密管理器"""
         self.output_base_dir = None
+        self.encryption_method = "aes"
 
     def get_encryption_config(self) -> dict[str, Any]:
         """
@@ -44,6 +45,29 @@ class EncryptionManager:
         except Exception as e:
             logger.error(f"无法获取加密配置: {e}")
             raise RuntimeError("无法获取加密配置，请检查环境配置") from e
+
+    def _hex_reverse_encrypt(
+        self, model_result: dict[str, Any], output_dir: str
+    ) -> str | None:
+        """使用十六进制倒序混淆方式保存数据（大华兼容格式）"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = Path(output_dir) / f"ui_run_{timestamp}"
+            output_path.mkdir(parents=True, exist_ok=True)
+
+            data_json = json.dumps(model_result, ensure_ascii=False)
+            hex_string = data_json.encode("utf-8").hex()
+            reversed_hex = hex_string[::-1]
+
+            file_path = output_path / f"encrypted_result_{timestamp}.bin"
+            with open(file_path, "wb") as f:
+                f.write(reversed_hex.encode("utf-8"))
+
+            logger.info(f"模型已保存（十六进制混淆格式）: {file_path}")
+            return str(file_path)
+        except Exception as e:
+            logger.error(f"十六进制混淆保存失败: {str(e)}")
+            return None
 
     @performance_monitor("encrypt_and_save")
     def encrypt_and_save(
@@ -80,7 +104,17 @@ class EncryptionManager:
                 logger.error("模型结果格式验证失败")
                 return None
 
-            # 使用本地加密功能
+            # 根据加密方式分发
+            if self.encryption_method == "hex_reverse":
+                encrypted_path = self._hex_reverse_encrypt(model_result, output_dir)
+                if encrypted_path:
+                    EnhancedLogger.log_file_info(encrypted_path, "十六进制混淆保存")
+                    return encrypted_path
+                else:
+                    logger.error("十六进制混淆保存失败")
+                    return None
+
+            # 使用本地加密功能（AES）
             encrypted_path = encrypt_data_to_file(
                 data_obj=model_result,
                 password=encryption_config["password"],
