@@ -117,7 +117,7 @@ class TestTemplateGenerator:
         assert "Range" in info
 
         # 检查每个模板信息包含必要字段
-        for template_type, template_info in info.items():
+        for _template_type, template_info in info.items():
             assert "name" in template_info
             assert "filename" in template_info
             assert "description" in template_info

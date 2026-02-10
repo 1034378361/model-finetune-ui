@@ -160,7 +160,7 @@ def generate_data_description(data_dir: Path):
 
 1. **Type 0 (微调模式)**:
    - 上传: A_coefficients.csv, range_data.csv
-   
+
 2. **Type 1 (完整建模模式)**:
    - 上传: w_coefficients.csv, a_coefficients.csv, b_coefficients.csv, range_data.csv
    - **注意**: A微调系数将根据Range数据自动生成，无需上传

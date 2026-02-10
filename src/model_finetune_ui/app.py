@@ -12,7 +12,6 @@ import logging
 import os
 import sys
 import traceback
-from collections import deque
 from datetime import datetime
 from pathlib import Path
 
@@ -42,8 +41,8 @@ except ImportError:
 
 # 尝试导入工具模块，如果失败则使用简化版本
 try:
-    from .utils.encryption import EncryptionManager
     from .utils.decryption import DecryptionManager
+    from .utils.encryption import EncryptionManager
     from .utils.file_handler import FileHandler
     from .utils.template_generator import TemplateGenerator
     from .utils.utils import EnhancedLogger, performance_monitor
@@ -53,8 +52,8 @@ try:
 except ImportError:
     # 如果相对导入失败，尝试绝对导入
     try:
-        from src.model_finetune_ui.utils.encryption import EncryptionManager
         from src.model_finetune_ui.utils.decryption import DecryptionManager
+        from src.model_finetune_ui.utils.encryption import EncryptionManager
         from src.model_finetune_ui.utils.file_handler import FileHandler
         from src.model_finetune_ui.utils.template_generator import TemplateGenerator
         from src.model_finetune_ui.utils.utils import (
@@ -147,9 +146,11 @@ class ModelFinetuneApp:
             app_mode = st.selectbox(
                 "选择应用模式",
                 options=["encrypt", "decrypt"],
-                format_func=lambda x: "📦 加密模式 (CSV→BIN)"
-                if x == "encrypt"
-                else "🔓 解密模式 (BIN→CSV)",
+                format_func=lambda x: (
+                    "📦 加密模式 (CSV→BIN)"
+                    if x == "encrypt"
+                    else "🔓 解密模式 (BIN→CSV)"
+                ),
                 help="加密模式: 上传CSV文件生成加密BIN文件\n解密模式: 上传BIN文件解析并下载CSV文件",
             )
 
@@ -171,9 +172,11 @@ class ModelFinetuneApp:
                 encryption_method = st.radio(
                     "加密方式",
                     options=["aes", "hex_reverse"],
-                    format_func=lambda x: "🔐 AES加密（默认）"
-                    if x == "aes"
-                    else "🔀 十六进制混淆（大华兼容）",
+                    format_func=lambda x: (
+                        "🔐 AES加密（默认）"
+                        if x == "aes"
+                        else "🔀 十六进制混淆（大华兼容）"
+                    ),
                     index=0,
                     help="AES加密：安全性高，兼容C++端解密\n十六进制混淆：兼容大华系统",
                 )
@@ -255,22 +258,22 @@ class ModelFinetuneApp:
                     st.markdown(
                         """
                     **Type 1 - 完整建模模式文件要求**：
-                    
+
                     **w权重系数矩阵格式**：
                     - 行索引：特征编号（STZ1, STZ2, ..., STZ26）
                     - 列索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - 数据类型：浮点数
-                    
+
                     **a权重系数矩阵格式**：
                     - 行索引：特征编号（STZ1, STZ2, ..., STZ26）
                     - 列索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - 数据类型：浮点数
-                    
+
                     **b幂系数矩阵格式**：
                     - 行索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - 列索引：特征编号（STZ1, STZ2, ..., STZ26）
                     - 数据类型：浮点数
-                    
+
                     **A微调系数矩阵格式**：
                     - 行索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - 列索引：A列
@@ -280,7 +283,7 @@ class ModelFinetuneApp:
                     - **行索引**：水质参数名称（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - **列索引**：min和max（最小值和最大值）
                     - **数据内容**：每个水质参数的取值范围
-                    
+
                     **💡 提示**：
                     - 可以先下载对应的模板文件，填入数据后上传
                     - 模板文件已包含正确的行列名称格式
@@ -290,17 +293,17 @@ class ModelFinetuneApp:
                     st.markdown(
                         """
                     **Type 0 - 微调模式文件要求**：
-                    
+
                     **A微调系数矩阵格式**：
                     - 行索引：水质参数（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - 列索引：A列
                     - 数据类型：浮点数
-                    
+
                     **Range数据格式**：
                     - **行索引**：水质参数名称（turbidity, ss, sd, do, codmn, codcr, chla, tn, tp, chroma, nh3n）
                     - **列索引**：min和max（最小值和最大值）
                     - **数据内容**：每个水质参数的取值范围
-                    
+
                     **💡 提示**：
                     - 可以先下载对应的模板文件，填入数据后上传
                     - 模板文件已包含正确的行列名称格式
@@ -369,12 +372,14 @@ class ModelFinetuneApp:
         """渲染解密模式界面"""
         st.header("🔓 模型文件解密")
 
-        st.markdown("""
+        st.markdown(
+            """
         ### 📋 功能说明
         - 上传加密的模型BIN文件
         - 自动解密并解析出参数
         - 下载对应的CSV文件
-        """)
+        """
+        )
 
         # BIN文件上传
         uploaded_bin = st.file_uploader(
@@ -568,18 +573,22 @@ class ModelFinetuneApp:
 
             with info_col1:
                 st.markdown("**📁 原文件信息:**")
-                st.info(f"""
+                st.info(
+                    f"""
                 • 文件名: {result["original_filename"]}
                 • 原始大小: {result.get("file_size", 0):,} bytes
                 • 解密时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-                """)
+                """
+                )
 
             with info_col2:
                 st.markdown("**📈 数据统计:**")
-                st.info(f"""
+                st.info(
+                    f"""
                 • 数据点总数: {result.get("total_cells", 0):,}个
                 • 非零值数量: {result.get("total_non_zero", 0):,}个
-                """)
+                """
+                )
 
         # CSV文件预览和下载
         st.subheader("📄 CSV文件详情")
@@ -596,12 +605,13 @@ class ModelFinetuneApp:
 
             # 尝试解析CSV以获取维度信息
             try:
-                import pandas as pd
                 import io
+
+                import pandas as pd
 
                 df = pd.read_csv(io.BytesIO(content), index_col=0)
                 dimensions = f"{df.shape[0]}×{df.shape[1]}"
-            except:
+            except Exception:
                 dimensions = "N/A"
 
             file_data.append(
@@ -626,8 +636,8 @@ class ModelFinetuneApp:
         # 批量下载按钮
         if len(result["csv_files"]) > 1:
             # 创建ZIP包
-            import zipfile
             import io
+            import zipfile
 
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -768,7 +778,7 @@ class ModelFinetuneApp:
                 st.markdown(
                     f"""
                 **生成时间**：{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-                
+
                 **说明**：
                 - 模型文件已加密保存
                 - 可以直接用于后续的水质预测

@@ -263,7 +263,7 @@ class DataValidator:
             (是否有效, 错误信息)
         """
         # 检查数据类型
-        if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+        if not isinstance(lat, int | float) or not isinstance(lon, int | float):
             return False, f"坐标必须是数值类型，获得: lat={type(lat)}, lon={type(lon)}"
 
         # 检查是否为NaN或无穷大
@@ -325,7 +325,7 @@ class DataValidator:
         if pd.isna(value):
             return True, ""  # NaN值是允许的
 
-        if not isinstance(value, (int, float)):
+        if not isinstance(value, int | float):
             return False, f"指标值必须是数值类型: {type(value)}"
 
         import math

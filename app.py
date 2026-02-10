@@ -25,6 +25,7 @@ try:
 
 except ImportError as e:
     import streamlit as st
+
     st.error(f"导入错误: {e}")
     st.error("请确保项目结构正确，并且所有依赖都已安装。")
     st.info("正在尝试使用旧版本的应用结构...")
@@ -32,8 +33,12 @@ except ImportError as e:
     # 回退到直接执行应用文件
     import subprocess
     import sys
+
     try:
-        subprocess.run([sys.executable, "-m", "streamlit", "run", "src/model_finetune_ui/app.py"], check=True)
+        subprocess.run(
+            [sys.executable, "-m", "streamlit", "run", "src/model_finetune_ui/app.py"],
+            check=True,
+        )
     except Exception as fallback_error:
         st.error(f"回退方案也失败了: {fallback_error}")
     st.stop()

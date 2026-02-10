@@ -7,11 +7,11 @@
 维度从解密后的数据自动反推
 """
 
+import io
 import json
 import logging
-import io
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -66,7 +66,7 @@ class DecryptionManager:
         """设置特征站点列表"""
         self._default_feature_stations = value
 
-    def get_decryption_config(self) -> Dict[str, Any]:
+    def get_decryption_config(self) -> dict[str, Any]:
         """获取解密配置"""
         try:
             return ConfigManager.get_encryption_config()
@@ -79,7 +79,7 @@ class DecryptionManager:
             }
 
     @performance_monitor("decrypt_bin_file")
-    def decrypt_bin_file(self, bin_file_path: str) -> Optional[Dict[str, Any]]:
+    def decrypt_bin_file(self, bin_file_path: str) -> dict[str, Any] | None:
         """
         解密bin文件
 
@@ -183,8 +183,8 @@ class DecryptionManager:
             return None
 
     def _decrypt_with_local_module(
-        self, encrypted_data: bytes, config: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        self, encrypted_data: bytes, config: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """使用本地加密模块解密数据
 
         Args:
@@ -284,22 +284,22 @@ class DecryptionManager:
             logger.error(f"❌ 十六进制混淆解密失败: {str(e)}")
             return None
 
-    def _simple_decrypt(self, file_path: str) -> Optional[Dict[str, Any]]:
+    def _simple_decrypt(self, file_path: str) -> dict[str, Any] | None:
         """简化解密方法（当外部解密函数不可用时）"""
         try:
             # 尝试直接读取JSON（用于测试）
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 data = json.load(f)
             logger.info("使用简化解密成功")
             return data
-        except:
+        except Exception:
             logger.error("简化解密也失败")
             return None
 
     @performance_monitor("parse_to_csv_format")
     def parse_to_csv_format(
-        self, decrypted_data: Dict[str, Any]
-    ) -> Dict[str, pd.DataFrame]:
+        self, decrypted_data: dict[str, Any]
+    ) -> dict[str, pd.DataFrame]:
         """
         将解密数据解析为CSV格式
 
@@ -368,7 +368,7 @@ class DecryptionManager:
             logger.error(f"❌ 解析CSV格式时发生错误: {str(e)}")
             return {}
 
-    def _parse_type_0_data(self, data: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
+    def _parse_type_0_data(self, data: dict[str, Any]) -> dict[str, pd.DataFrame]:
         """解析Type 0数据（A系数 + Range）"""
         csv_data = {}
 
@@ -397,7 +397,7 @@ class DecryptionManager:
 
         return csv_data
 
-    def _parse_type_1_data(self, data: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
+    def _parse_type_1_data(self, data: dict[str, Any]) -> dict[str, pd.DataFrame]:
         """解析Type 1数据（w、a、b、A系数 + Range）"""
         csv_data = {}
 
@@ -494,7 +494,7 @@ class DecryptionManager:
 
         return csv_data
 
-    def _parse_range_data(self, data: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
+    def _parse_range_data(self, data: dict[str, Any]) -> dict[str, pd.DataFrame]:
         """解析Range数据"""
         csv_data = {}
 
@@ -561,7 +561,7 @@ class DecryptionManager:
             matrix.append(row)
         return matrix
 
-    def generate_csv_files(self, csv_data: Dict[str, pd.DataFrame]) -> Dict[str, bytes]:
+    def generate_csv_files(self, csv_data: dict[str, pd.DataFrame]) -> dict[str, bytes]:
         """
         生成CSV文件的字节内容
 
@@ -601,7 +601,7 @@ class DecryptionManager:
 
         return csv_files
 
-    def _validate_file_path(self, file_path: str) -> Dict[str, Any]:
+    def _validate_file_path(self, file_path: str) -> dict[str, Any]:
         """验证文件路径和基本属性"""
         try:
             path_obj = Path(file_path)
@@ -637,7 +637,7 @@ class DecryptionManager:
         except Exception as e:
             return {"valid": False, "error": f"文件路径验证异常: {str(e)}"}
 
-    def _infer_dimensions_from_data(self, data: Dict[str, Any]) -> None:
+    def _infer_dimensions_from_data(self, data: dict[str, Any]) -> None:
         """从解密数据反推维度并设置配置"""
         param_count, feature_count = self._infer_dimensions(data)
 
@@ -670,7 +670,7 @@ class DecryptionManager:
             }
             logger.info(f"📐 使用默认参数名，{feature_count}个特征站点")
 
-    def _infer_dimensions(self, data: Dict[str, Any]) -> tuple[int, int | None]:
+    def _infer_dimensions(self, data: dict[str, Any]) -> tuple[int, int | None]:
         """
         从数据中自适应推断指标数和特征数
 
@@ -766,13 +766,13 @@ class DecryptionManager:
             logger.error(f"❌ [维度推断] 推断维度时出错: {str(e)}，使用默认值")
             return 11, None
 
-    def _infer_feature_count(self, data: Dict[str, Any]) -> int:
+    def _infer_feature_count(self, data: dict[str, Any]) -> int:
         """从数据中智能推断特征数量（向后兼容接口）"""
         _, feature_count = self._infer_dimensions(data)
         return feature_count
 
     def _validate_feature_consistency(
-        self, data: Dict[str, Any], feature_count: int, param_count: int
+        self, data: dict[str, Any], feature_count: int, param_count: int
     ):
         """验证特征数量一致性"""
         try:
@@ -806,7 +806,7 @@ class DecryptionManager:
         except Exception as e:
             logger.error(f"❌ 特征一致性验证出错: {str(e)}")
 
-    def _validate_decrypted_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_decrypted_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """验证解密后的数据结构"""
         try:
             # 检查基本结构
@@ -818,7 +818,7 @@ class DecryptionManager:
                 return {"valid": False, "error": "缺少模型类型字段 'type'"}
 
             model_type = data.get("type")
-            if not isinstance(model_type, (int, float)):
+            if not isinstance(model_type, int | float):
                 return {
                     "valid": False,
                     "error": f"模型类型必须是数字: {type(model_type)}",
@@ -863,8 +863,8 @@ class DecryptionManager:
             return {"valid": False, "error": f"数据结构验证异常: {str(e)}"}
 
     def _validate_type_0_data_adaptive(
-        self, data: Dict[str, Any], param_count: int
-    ) -> Dict[str, Any]:
+        self, data: dict[str, Any], param_count: int
+    ) -> dict[str, Any]:
         """自适应验证Type 0数据结构"""
         required_fields = ["A", "Range"]
         missing_fields = [f for f in required_fields if f not in data]
@@ -891,7 +891,7 @@ class DecryptionManager:
 
         # 验证A系数值类型
         for i, val in enumerate(a_values):
-            if not isinstance(val, (int, float)):
+            if not isinstance(val, int | float):
                 return {"valid": False, "error": f"A系数[{i}]不是数字类型: {type(val)}"}
 
         # 验证Range数据（长度应等于param_count * 2）
@@ -911,7 +911,7 @@ class DecryptionManager:
 
         # 验证Range值类型
         for i, val in enumerate(range_values):
-            if not isinstance(val, (int, float)):
+            if not isinstance(val, int | float):
                 return {
                     "valid": False,
                     "error": f"Range数据[{i}]不是数字类型: {type(val)}",
@@ -921,8 +921,8 @@ class DecryptionManager:
         return {"valid": True}
 
     def _validate_type_1_data_adaptive(
-        self, data: Dict[str, Any], param_count: int, feature_count: int
-    ) -> Dict[str, Any]:
+        self, data: dict[str, Any], param_count: int, feature_count: int
+    ) -> dict[str, Any]:
         """自适应验证Type 1数据结构"""
         required_fields = ["w", "a", "b", "A", "Range"]
         missing_fields = [f for f in required_fields if f not in data]
@@ -959,7 +959,7 @@ class DecryptionManager:
 
             # 验证数值类型
             for i, val in enumerate(field_data):
-                if not isinstance(val, (int, float)):
+                if not isinstance(val, int | float):
                     return {
                         "valid": False,
                         "error": f"{field}系数[{i}]不是数字类型: {type(val)}",
@@ -970,7 +970,7 @@ class DecryptionManager:
         )
         return {"valid": True}
 
-    def _validate_type_0_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_type_0_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """验证Type 0数据结构（向后兼容）"""
         required_fields = ["A", "Range"]
         missing_fields = []
@@ -1001,7 +1001,7 @@ class DecryptionManager:
 
         # 验证A系数值类型和范围
         for i, val in enumerate(a_values):
-            if not isinstance(val, (int, float)):
+            if not isinstance(val, int | float):
                 return {"valid": False, "error": f"A系数[{i}]不是数字类型: {type(val)}"}
             if abs(val) > 1000:  # 合理性检查
                 logger.warning(f"A系数[{i}]值较大: {val}")
@@ -1023,7 +1023,7 @@ class DecryptionManager:
 
         # 验证Range值
         for i, val in enumerate(range_values):
-            if not isinstance(val, (int, float)):
+            if not isinstance(val, int | float):
                 return {
                     "valid": False,
                     "error": f"Range数据[{i}]不是数字类型: {type(val)}",
@@ -1040,7 +1040,7 @@ class DecryptionManager:
 
         return {"valid": True}
 
-    def _validate_type_1_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_type_1_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """验证Type 1数据结构"""
         required_fields = ["w", "a", "b", "A", "Range"]
         missing_fields = []
@@ -1081,7 +1081,7 @@ class DecryptionManager:
 
             # 验证数值类型
             for i, val in enumerate(field_data):
-                if not isinstance(val, (int, float)):
+                if not isinstance(val, int | float):
                     return {
                         "valid": False,
                         "error": f"{field}系数[{i}]不是数字类型: {type(val)}",

@@ -3,8 +3,6 @@
 import json
 import os
 
-import pytest
-
 from src.model_finetune_ui.utils.decryption import DecryptionManager
 from src.model_finetune_ui.utils.encryption import EncryptionManager
 
@@ -31,7 +29,7 @@ class TestHexReverseEncryption:
         assert os.path.exists(result_path)
 
         # Verify file content is pure hex text
-        with open(result_path, "r", encoding="utf-8") as f:
+        with open(result_path, encoding="utf-8") as f:
             content = f.read()
             assert all(c in "0123456789abcdef\n" for c in content.lower())
 

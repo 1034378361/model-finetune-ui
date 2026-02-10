@@ -24,9 +24,9 @@ def setup_environment():
 
     # 检查依赖
     try:
-        import numpy
-        import pandas
-        import streamlit
+        import numpy  # noqa: F401
+        import pandas  # noqa: F401
+        import streamlit  # noqa: F401
 
         print("[OK] 基本依赖检查通过")
     except ImportError as e:
@@ -39,8 +39,10 @@ def check_main_project():
     """检查主项目是否可用"""
     try:
         # 尝试导入关键模块
-        from src.model_finetune_ui.utils.encryption import EncryptionManager
-        from src.model_finetune_ui.utils.validator import DataValidator
+        from src.model_finetune_ui.utils.encryption import (
+            EncryptionManager,  # noqa: F401
+        )
+        from src.model_finetune_ui.utils.validator import DataValidator  # noqa: F401
 
         print("[OK] 关键模块检查通过")
         return True
@@ -104,7 +106,7 @@ def main():
     if not check_main_project():
         print("[WARNING] 关键模块检查失败，某些功能可能不可用")
         response = input("是否继续启动？(y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             sys.exit(1)
 
     # 运行应用

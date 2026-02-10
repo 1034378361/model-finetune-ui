@@ -54,8 +54,8 @@ class TestDecryptionValidation:
             f.write("x")  # 创建小文件用于测试
 
         # 手动测试大小检查逻辑
-        path_obj = Path(large_file)
-        max_size = 100 * 1024 * 1024  # 100MB
+        Path(large_file)
+        100 * 1024 * 1024  # 100MB
 
         # 文件实际很小，应该通过验证
         result = decryptor._validate_file_path(str(large_file))
@@ -98,7 +98,7 @@ class TestDecryptionValidation:
         invalid_data = {
             "type": 0,
             "A": [1.0] * 5,  # 长度不正确
-            "Range": [1.0, 2.0] * 11
+            "Range": [1.0, 2.0] * 11,
         }
         result = decryptor._validate_type_0_data(invalid_data)
 
@@ -112,7 +112,7 @@ class TestDecryptionValidation:
         invalid_data = {
             "type": 0,
             "A": [1.0] * 11,
-            "Range": [1.0, 2.0] * 5  # 长度不正确
+            "Range": [1.0, 2.0] * 5,  # 长度不正确
         }
         result = decryptor._validate_type_0_data(invalid_data)
 
@@ -126,7 +126,7 @@ class TestDecryptionValidation:
         incomplete_data = {
             "type": 1,
             "w": [1.0] * (26 * 11),
-            "a": [1.0] * (26 * 11)
+            "a": [1.0] * (26 * 11),
             # 缺少 b, A, Range
         }
         result = decryptor._validate_type_1_data(incomplete_data)
@@ -144,7 +144,7 @@ class TestDecryptionValidation:
             "a": [1.0] * (26 * 11),
             "b": [1.0] * (11 * 26),
             "A": [1.0] * 11,
-            "Range": [1.0, 2.0] * 11
+            "Range": [1.0, 2.0] * 11,
         }
         result = decryptor._validate_type_1_data(invalid_data)
 
@@ -161,7 +161,7 @@ class TestDecryptionValidation:
             "a": [1.0] * (26 * 11),
             "b": [1.0] * (11 * 26),
             "A": [1.0] * 11,
-            "Range": [1.0, 2.0] * 11
+            "Range": [1.0, 2.0] * 11,
         }
         result = decryptor._validate_type_1_data(invalid_data)
 
@@ -172,11 +172,7 @@ class TestDecryptionValidation:
         """测试Type 0完整验证成功"""
         decryptor = DecryptionManager()
 
-        valid_data = {
-            "type": 0,
-            "A": [1.0] * 11,
-            "Range": [1.0, 2.0] * 11
-        }
+        valid_data = {"type": 0, "A": [1.0] * 11, "Range": [1.0, 2.0] * 11}
         result = decryptor._validate_decrypted_data(valid_data)
 
         assert result["valid"] is True
@@ -191,7 +187,7 @@ class TestDecryptionValidation:
             "a": [1.0] * (26 * 11),
             "b": [1.0] * (11 * 26),
             "A": [1.0] * 11,
-            "Range": [1.0, 2.0] * 11
+            "Range": [1.0, 2.0] * 11,
         }
         result = decryptor._validate_decrypted_data(valid_data)
 

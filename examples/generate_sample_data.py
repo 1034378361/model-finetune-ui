@@ -171,7 +171,7 @@ def generate_data_description(data_dir: Path):
 
 1. **Type 0 (快速配置模式)**:
    - 上传: A_coefficients.csv, range_data.csv
-   
+
 2. **Type 1 (完整配置模式)**:
    - 上传: w_coefficients.csv, a_coefficients.csv, b_coefficients.csv, A_coefficients.csv, range_data.csv
 

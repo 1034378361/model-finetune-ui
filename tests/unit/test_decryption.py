@@ -38,7 +38,30 @@ class TestDecryptionManager:
         test_data = {
             "type": 0,
             "A": [1.0, 1.5, -0.5, 0.8, 1.2, -0.3, 0.9, 1.1, 0.7, -0.2, 1.3],
-            "Range": [0.0, 10.0, 5.0, 50.0, 2.0, 20.0, 1.0, 15.0, 3.0, 25.0, 0.5, 8.0, 4.0, 30.0, 1.5, 12.0, 2.5, 18.0, 0.8, 6.0, 3.5, 22.0]
+            "Range": [
+                0.0,
+                10.0,
+                5.0,
+                50.0,
+                2.0,
+                20.0,
+                1.0,
+                15.0,
+                3.0,
+                25.0,
+                0.5,
+                8.0,
+                4.0,
+                30.0,
+                1.5,
+                12.0,
+                2.5,
+                18.0,
+                0.8,
+                6.0,
+                3.5,
+                22.0,
+            ],
         }
 
         # 写入临时文件
@@ -61,7 +84,30 @@ class TestDecryptionManager:
         test_data = {
             "type": 0,
             "A": [1.0, 1.5, -0.5, 0.8, 1.2, -0.3, 0.9, 1.1, 0.7, -0.2, 1.3],
-            "Range": [0.0, 10.0, 5.0, 50.0, 2.0, 20.0, 1.0, 15.0, 3.0, 25.0, 0.5, 8.0, 4.0, 30.0, 1.5, 12.0, 2.5, 18.0, 0.8, 6.0, 3.5, 22.0]
+            "Range": [
+                0.0,
+                10.0,
+                5.0,
+                50.0,
+                2.0,
+                20.0,
+                1.0,
+                15.0,
+                3.0,
+                25.0,
+                0.5,
+                8.0,
+                4.0,
+                30.0,
+                1.5,
+                12.0,
+                2.5,
+                18.0,
+                0.8,
+                6.0,
+                3.5,
+                22.0,
+            ],
         }
 
         csv_data = decryptor._parse_type_0_data(test_data)
@@ -97,7 +143,7 @@ class TestDecryptionManager:
             "a": [0.5] * a_size,
             "b": [-0.2] * b_size,
             "A": [-1.0] * len(decryptor.water_params),
-            "Range": list(range(range_size))  # 0, 1, 2, 3, ...
+            "Range": list(range(range_size)),  # 0, 1, 2, 3, ...
         }
 
         csv_data = decryptor._parse_type_1_data(test_data)
@@ -112,8 +158,8 @@ class TestDecryptionManager:
         assert csv_data["w_coefficients"].shape == (26, 11)  # 特征x参数
         assert csv_data["a_coefficients"].shape == (26, 11)  # 特征x参数
         assert csv_data["b_coefficients"].shape == (11, 26)  # 参数x特征
-        assert csv_data["A_coefficients"].shape == (11, 1)   # 参数x1
-        assert csv_data["range_data"].shape == (11, 2)       # 参数x2
+        assert csv_data["A_coefficients"].shape == (11, 1)  # 参数x1
+        assert csv_data["range_data"].shape == (11, 2)  # 参数x2
 
     def test_reshape_to_matrix(self):
         """测试矩阵重塑功能"""
@@ -138,13 +184,11 @@ class TestDecryptionManager:
         # 创建测试DataFrame
         test_data = {
             "A_coefficients": pd.DataFrame(
-                {"A": [-1.0] * 11},
-                index=decryptor.water_params
+                {"A": [-1.0] * 11}, index=decryptor.water_params
             ),
             "range_data": pd.DataFrame(
-                {"min": [0.0] * 11, "max": [10.0] * 11},
-                index=decryptor.water_params
-            )
+                {"min": [0.0] * 11, "max": [10.0] * 11}, index=decryptor.water_params
+            ),
         }
 
         csv_files = decryptor.generate_csv_files(test_data)
@@ -154,7 +198,7 @@ class TestDecryptionManager:
         assert "range_data.csv" in csv_files
 
         # 检查CSV内容
-        for filename, content in csv_files.items():
+        for _filename, content in csv_files.items():
             assert isinstance(content, bytes)
             assert len(content) > 0
 

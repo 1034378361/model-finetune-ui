@@ -10,7 +10,6 @@ from typing import Any
 
 from .utils.config_manager import ConfigurationManager
 
-
 # 全局配置管理器实例（懒加载）
 _config_manager: ConfigurationManager | None = None
 
