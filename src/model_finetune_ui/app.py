@@ -231,15 +231,27 @@ class ModelFinetuneApp:
                 output_dir = st.text_input(
                     "输出目录", value="./ui_output", help="生成的模型文件保存位置"
                 )
+
+                # 加密方式选择
+                encryption_method = st.radio(
+                    "加密方式",
+                    options=["aes", "hex_reverse"],
+                    format_func=lambda x: "🔐 AES加密（默认）"
+                    if x == "aes"
+                    else "🔀 十六进制混淆（大华兼容）",
+                    index=0,
+                    help="AES加密：安全性高，兼容C++端解密\n十六进制混淆：兼容大华系统",
+                )
             else:
                 model_type = None
                 output_dir = None
+                encryption_method = "aes"
 
             # 显示固定配置信息
             st.markdown("---")
             st.caption("📊 固定配置: 11 个水质参数, 26 个特征站点")
 
-            return app_mode, model_type, output_dir
+            return app_mode, model_type, output_dir, encryption_method
 
     def render_file_upload_section(self, model_type: int):
         """渲染文件上传区域"""
@@ -825,11 +837,11 @@ class ModelFinetuneApp:
         self.render_header()
 
         # 获取配置
-        app_mode, model_type, output_dir = self.render_sidebar()
+        app_mode, model_type, output_dir, encryption_method = self.render_sidebar()
 
         if app_mode == "encrypt":
             # 加密模式：CSV → BIN
-            self.render_encrypt_mode(model_type, output_dir)
+            self.render_encrypt_mode(model_type, output_dir, encryption_method)
         else:
             # 解密模式：BIN → CSV
             self.render_decrypt_mode()
