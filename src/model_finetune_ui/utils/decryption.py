@@ -161,11 +161,16 @@ class DecryptionManager:
 
                 model_type = decrypted_data.get("type", "未知")
                 feature_count = (
-                    len(self.feature_stations) if self.feature_stations else 0
+                    len(self.feature_stations) if self.feature_stations else None
                 )
                 logger.info("🎉 BIN文件解密完成！")
+                feature_label = (
+                    f"{feature_count}特征"
+                    if feature_count is not None
+                    else "特征数不适用"
+                )
                 logger.info(
-                    f"📊 模型信息: Type {model_type} ({feature_count}特征×{len(self.water_params)}参数)"
+                    f"📊 模型信息: Type {model_type} ({feature_label}×{len(self.water_params)}参数)"
                 )
 
                 return decrypted_data
@@ -306,11 +311,18 @@ class DecryptionManager:
         """
         try:
             model_type = decrypted_data.get("type", 0)
-            feature_count = len(self.feature_stations) if self.feature_stations else 0
+            feature_count = (
+                len(self.feature_stations) if self.feature_stations else None
+            )
 
             logger.info("📋 开始解析数据为CSV格式...")
+            feature_label = (
+                f"{feature_count}个特征站点"
+                if feature_count is not None
+                else "特征站点不适用"
+            )
             logger.info(
-                f"📊 模型配置: Type {model_type}, {feature_count}个特征站点, {len(self.water_params)}个水质参数"
+                f"📊 模型配置: Type {model_type}, {feature_label}, {len(self.water_params)}个水质参数"
             )
 
             csv_data = {}
@@ -629,6 +641,21 @@ class DecryptionManager:
         """从解密数据反推维度并设置配置"""
         param_count, feature_count = self._infer_dimensions(data)
 
+        # 当feature_count为None时（Type 0场景），设置feature_stations为None
+        if feature_count is None:
+            if param_count != len(self._default_water_params):
+                self._detected_config = {
+                    "water_params": [f"param_{i + 1}" for i in range(param_count)],
+                    "feature_stations": None,
+                }
+            else:
+                self._detected_config = {
+                    "water_params": self._default_water_params,
+                    "feature_stations": None,
+                }
+            logger.info(f"📐 维度结果: {param_count}参数, 特征数不适用")
+            return
+
         # 生成参数名和站点名
         if param_count != len(self._default_water_params):
             self._detected_config = {
@@ -643,7 +670,7 @@ class DecryptionManager:
             }
             logger.info(f"📐 使用默认参数名，{feature_count}个特征站点")
 
-    def _infer_dimensions(self, data: Dict[str, Any]) -> tuple[int, int]:
+    def _infer_dimensions(self, data: Dict[str, Any]) -> tuple[int, int | None]:
         """
         从数据中自适应推断指标数和特征数
 
@@ -711,11 +738,10 @@ class DecryptionManager:
                     feature_count = b_length // param_count
                     logger.info(f"✅ [维度推断] 从b系数推断特征数: {feature_count}个")
 
-            # 步骤4: 如果还是无法推断，使用默认值
+            # 步骤4: 如果还是无法推断，返回None（Type 0场景无特征维度信息）
             if feature_count is None:
-                feature_count = 26
-                logger.warning(
-                    f"⚠️ [维度推断] 无法从数据推断特征数，使用默认值: {feature_count}"
+                logger.info(
+                    "ℹ️ [维度推断] 数据中无特征维度信息（Type 0模型仅含A和Range）"
                 )
 
             # 验证Range数据一致性
@@ -727,15 +753,18 @@ class DecryptionManager:
                         f"⚠️ [维度推断] Range长度{range_length}与期望{expected_range}不一致"
                     )
 
+            feature_label = (
+                f"{feature_count}个特征" if feature_count is not None else "不适用"
+            )
             logger.info(
-                f"🎯 [维度推断] 最终结果: {param_count}个指标 × {feature_count}个特征"
+                f"🎯 [维度推断] 最终结果: {param_count}个指标 × {feature_label}"
             )
             logger.info("=" * 50)
             return param_count, feature_count
 
         except Exception as e:
             logger.error(f"❌ [维度推断] 推断维度时出错: {str(e)}，使用默认值")
-            return 11, 26
+            return 11, None
 
     def _infer_feature_count(self, data: Dict[str, Any]) -> int:
         """从数据中智能推断特征数量（向后兼容接口）"""
@@ -813,10 +842,14 @@ class DecryptionManager:
                 )
 
             # 动态设置特征站点
-            self.feature_stations = [f"STZ{i}" for i in range(1, feature_count + 1)]
-            logger.info(
-                f"动态设置特征站点: {feature_count}个 (STZ1-STZ{feature_count})"
-            )
+            if feature_count is not None:
+                self.feature_stations = [f"STZ{i}" for i in range(1, feature_count + 1)]
+                logger.info(
+                    f"动态设置特征站点: {feature_count}个 (STZ1-STZ{feature_count})"
+                )
+            else:
+                self.feature_stations = None
+                logger.info("特征站点: 不适用（Type 0模型无特征维度信息）")
 
             # 根据模型类型验证必需字段（使用自适应维度）
             if model_type == 0:

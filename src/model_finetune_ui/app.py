@@ -18,85 +18,20 @@ from pathlib import Path
 
 import streamlit as st
 
-
-# ==================== 日志处理器 ====================
-class StreamlitLogHandler(logging.Handler):
-    """将日志捕获到内存中供Streamlit显示"""
-
-    _instance = None
-    _logs: deque = deque(maxlen=500)  # 最多保留500条日志
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def emit(self, record):
-        try:
-            msg = self.format(record)
-            timestamp = datetime.fromtimestamp(record.created).strftime("%H:%M:%S")
-            level = record.levelname
-            self._logs.append({"time": timestamp, "level": level, "msg": msg})
-        except Exception:
-            pass
-
-    @classmethod
-    def get_logs(cls) -> list[dict]:
-        """获取所有日志"""
-        return list(cls._logs)
-
-    @classmethod
-    def clear_logs(cls):
-        """清空日志"""
-        cls._logs.clear()
-
-    @classmethod
-    def get_logs_by_level(cls, level: str | None = None) -> list[dict]:
-        """按级别过滤日志"""
-        if level is None or level == "ALL":
-            return list(cls._logs)
-        return [log for log in cls._logs if log["level"] == level]
-
-
-def setup_logging():
-    """配置日志系统，捕获所有相关模块的日志"""
-    # 创建处理器
-    handler = StreamlitLogHandler()
-    handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter("%(name)s - %(message)s")
-    handler.setFormatter(formatter)
-
-    # 配置根日志器
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
-
-    # 移除已存在的StreamlitLogHandler（避免重复）
-    for h in root_logger.handlers[:]:
-        if isinstance(h, StreamlitLogHandler):
-            root_logger.removeHandler(h)
-
-    root_logger.addHandler(handler)
-
-    # 配置项目相关的日志器
-    loggers_to_capture = [
-        "src.model_finetune_ui",
-        "model_finetune_ui",
-        "__main__",
-    ]
-    for logger_name in loggers_to_capture:
-        logger = logging.getLogger(logger_name)
-        logger.setLevel(logging.DEBUG)
-        # 确保日志向上传播到根日志器
-        logger.propagate = True
-
-
-# 初始化日志系统
-setup_logging()
-
 # 添加项目根路径以支持绝对导入
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+
+# 导入日志工具
+try:
+    from .utils.logger import StreamlitLogHandler, setup_logging
+except ImportError:
+    # 如果相对导入失败，使用绝对导入
+    from src.model_finetune_ui.utils.logger import StreamlitLogHandler, setup_logging
+
+# 初始化日志系统
+setup_logging()
 
 # 导入核心模块
 try:
@@ -520,7 +455,7 @@ class ModelFinetuneApp:
             feature_count = (
                 len(self.decryptor.feature_stations)
                 if self.decryptor.feature_stations
-                else 0
+                else None
             )
 
             with info_container:
@@ -528,7 +463,10 @@ class ModelFinetuneApp:
                 with col1:
                     st.metric("模型类型", f"Type {model_type}")
                 with col2:
-                    st.metric("特征数量", f"{feature_count}个")
+                    feature_display = (
+                        f"{feature_count}个" if feature_count is not None else "不适用"
+                    )
+                    st.metric("特征数量", feature_display)
                 with col3:
                     st.metric("参数数量", f"{len(self.decryptor.water_params)}个")
 
@@ -615,7 +553,9 @@ class ModelFinetuneApp:
         with col1:
             st.metric("模型类型", f"Type {result.get('model_type', 'N/A')}")
         with col2:
-            st.metric("特征数量", f"{result.get('feature_count', 'N/A')}个")
+            fc = result.get("feature_count")
+            feature_display = f"{fc}个" if fc is not None else "不适用"
+            st.metric("特征数量", feature_display)
         with col3:
             st.metric("CSV文件", f"{len(result['csv_files'])}个")
         with col4:
