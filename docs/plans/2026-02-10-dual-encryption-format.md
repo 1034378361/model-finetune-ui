@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** 在加密模式中支持两种BIN文件格式——AES加密（默认，当前已有）和十六进制混淆（大华兼容），用户通过UI选择；解密模式自动检测格式。
+**Goal:** 在加密模式中支持两种BIN文件格式——AES加密（默认，当前已有）和预警器专用（大华兼容），用户通过UI选择；解密模式自动检测格式。
 
 **Architecture:** 在 `EncryptionManager` 和 `DecryptionManager` 中各新增 hex-reverse 方法。UI侧边栏加密模式下新增 radio 选择加密方式，选择结果透传到加密调用。解密时通过文件内容特征自动判断格式。
 
@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: 加密模块 — 新增十六进制混淆加密方法
+### Task 1: 加密模块 — 新增预警器专用加密方法
 
 **Files:**
 - Modify: `src/model_finetune_ui/utils/encryption.py`
@@ -41,10 +41,10 @@ def _hex_reverse_encrypt(self, model_result: dict[str, Any], output_dir: str) ->
         with open(file_path, "wb") as f:
             f.write(reversed_hex.encode("utf-8"))
 
-        logger.info(f"模型已保存（十六进制混淆格式）: {file_path}")
+        logger.info(f"模型已保存（预警器专用格式）: {file_path}")
         return str(file_path)
     except Exception as e:
-        logger.error(f"十六进制混淆保存失败: {str(e)}")
+        logger.error(f"预警器专用保存失败: {str(e)}")
         return None
 ```
 
@@ -68,7 +68,7 @@ git commit -m "feat: add hex-reverse obfuscation encryption method"
 
 ---
 
-### Task 2: 解密模块 — 新增十六进制混淆解密 + 自动格式检测
+### Task 2: 解密模块 — 新增预警器专用解密 + 自动格式检测
 
 **Files:**
 - Modify: `src/model_finetune_ui/utils/decryption.py`
@@ -102,10 +102,10 @@ def _decrypt_hex_reverse(self, file_data: bytes) -> dict[str, Any] | None:
         hex_string = reversed_hex[::-1]
         data_json = bytes.fromhex(hex_string).decode("utf-8")
         result = json.loads(data_json)
-        logger.info("✅ 十六进制混淆格式解密成功")
+        logger.info("✅ 预警器专用格式解密成功")
         return result
     except Exception as e:
-        logger.error(f"❌ 十六进制混淆解密失败: {str(e)}")
+        logger.error(f"❌ 预警器专用解密失败: {str(e)}")
         return None
 ```
 
@@ -142,9 +142,9 @@ git commit -m "feat: add hex-reverse decryption with auto-format detection"
 encryption_method = st.radio(
     "加密方式",
     options=["aes", "hex_reverse"],
-    format_func=lambda x: "🔐 AES加密（默认）" if x == "aes" else "🔀 十六进制混淆（大华兼容）",
+    format_func=lambda x: "🔐 AES加密（默认）" if x == "aes" else "🔀 预警器专用（大华兼容）",
     index=0,
-    help="AES加密：安全性高，兼容C++端解密\n十六进制混淆：兼容大华系统",
+    help="AES加密：安全性高，兼容C++端解密\n预警器专用：兼容大华系统",
 )
 ```
 
@@ -182,7 +182,7 @@ git commit -m "feat: add encryption method selector in sidebar UI"
 
 ---
 
-### Task 4: 单元测试 — 十六进制混淆加密/解密
+### Task 4: 单元测试 — 预警器专用加密/解密
 
 **Files:**
 - Create: `tests/unit/test_hex_reverse.py`
@@ -190,7 +190,7 @@ git commit -m "feat: add encryption method selector in sidebar UI"
 **Step 1: 编写加密测试**
 
 ```python
-"""十六进制混淆加密/解密单元测试"""
+"""预警器专用加密/解密单元测试"""
 
 import json
 import os
@@ -202,10 +202,10 @@ from src.model_finetune_ui.utils.decryption import DecryptionManager
 
 
 class TestHexReverseEncryption:
-    """十六进制混淆加密测试"""
+    """预警器专用加密测试"""
 
     def test_hex_reverse_encrypt_type_0(self, temp_dir):
-        """测试Type 0数据的十六进制混淆加密"""
+        """测试Type 0数据的预警器专用加密"""
         encryptor = EncryptionManager()
         encryptor.encryption_method = "hex_reverse"
 
@@ -225,7 +225,7 @@ class TestHexReverseEncryption:
         assert all(c in "0123456789abcdef" for c in content)
 
     def test_hex_reverse_encrypt_type_1(self, temp_dir):
-        """测试Type 1数据的十六进制混淆加密"""
+        """测试Type 1数据的预警器专用加密"""
         encryptor = EncryptionManager()
         encryptor.encryption_method = "hex_reverse"
 
@@ -251,10 +251,10 @@ class TestHexReverseEncryption:
 
 ```python
 class TestHexReverseDecryption:
-    """十六进制混淆解密测试"""
+    """预警器专用解密测试"""
 
     def test_detect_hex_reverse_format(self):
-        """测试格式检测 - 十六进制混淆"""
+        """测试格式检测 - 预警器专用"""
         hex_data = "abcdef0123456789" * 10
         result = DecryptionManager._detect_bin_format(hex_data.encode("utf-8"))
         assert result == "hex_reverse"
@@ -266,7 +266,7 @@ class TestHexReverseDecryption:
         assert result == "aes"
 
     def test_decrypt_hex_reverse_file(self, temp_dir):
-        """测试解密十六进制混淆文件"""
+        """测试解密预警器专用文件"""
         decryptor = DecryptionManager()
 
         # 手动创建一个hex-reverse格式的文件
@@ -314,7 +314,7 @@ git commit -m "test: add hex-reverse encryption/decryption unit tests"
 
 ```python
 def test_hex_reverse_roundtrip(self, temp_dir):
-    """测试十六进制混淆格式的加密→解密往返"""
+    """测试预警器专用格式的加密→解密往返"""
     from src.model_finetune_ui.utils.encryption import EncryptionManager
 
     # 加密

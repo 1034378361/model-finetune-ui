@@ -63,10 +63,10 @@ class EncryptionManager:
             with open(file_path, "wb") as f:
                 f.write(reversed_hex.encode("utf-8"))
 
-            logger.info(f"模型已保存（十六进制混淆格式）: {file_path}")
+            logger.info(f"模型已保存（预警器专用格式）: {file_path}")
             return str(file_path)
         except Exception as e:
-            logger.error(f"十六进制混淆保存失败: {str(e)}")
+            logger.error(f"预警器专用保存失败: {str(e)}")
             return None
 
     @performance_monitor("encrypt_and_save")
@@ -108,10 +108,10 @@ class EncryptionManager:
             if self.encryption_method == "hex_reverse":
                 encrypted_path = self._hex_reverse_encrypt(model_result, output_dir)
                 if encrypted_path:
-                    EnhancedLogger.log_file_info(encrypted_path, "十六进制混淆保存")
+                    EnhancedLogger.log_file_info(encrypted_path, "预警器专用保存")
                     return encrypted_path
                 else:
-                    logger.error("十六进制混淆保存失败")
+                    logger.error("预警器专用保存失败")
                     return None
 
             # 使用本地加密功能（AES）

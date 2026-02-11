@@ -175,7 +175,7 @@ class ModelFinetuneApp:
                     format_func=lambda x: (
                         "🔐 AES加密（默认）"
                         if x == "aes"
-                        else "🔀 十六进制混淆（大华兼容）"
+                        else "🔀 预警器专用格式"
                     ),
                     index=0,
                     help="AES加密：安全性高，兼容C++端解密\n十六进制混淆：兼容大华系统",

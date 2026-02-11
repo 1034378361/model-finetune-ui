@@ -81,8 +81,8 @@ class UIConfig:
         },
         1: {
             "name": "完整建模模式",
-            "description": "使用完整的w权重、a权重、b幂系数进行建模（微调系数自动生成）",
-            "required_files": ["w", "a", "b", "Range"],
+            "description": "使用完整的w权重、a权重、b幂系数进行建模",
+            "required_files": ["w", "a", "b", "A", "Range"],
             "color": "#ff7f0e",
         },
     }
@@ -214,10 +214,6 @@ class ValidationConfig:
     COEFFICIENT_VALUE_RANGE = (-1000, 1000)
     A_COEFFICIENT_RANGE = (-10, 10)
 
-    # 维度验证
-    EXPECTED_WATER_PARAMS_COUNT = 11
-    EXPECTED_STATION_COUNT = 26
-
     @classmethod
     def get_validation_thresholds(cls) -> dict[str, Any]:
         """获取验证阈值"""
@@ -229,15 +225,6 @@ class ValidationConfig:
             "a_coefficient_range": cls.A_COEFFICIENT_RANGE,
         }
 
-    @classmethod
-    def get_expected_water_params_count(cls) -> int:
-        """动态获取期望的水质参数数量"""
-        return len(get_config_manager().get_water_params())
-
-    @classmethod
-    def get_expected_station_count(cls) -> int:
-        """动态获取期望的站点数量"""
-        return len(get_config_manager().get_feature_stations())
 
 
 # 导出配置实例

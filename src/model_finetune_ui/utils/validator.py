@@ -2,7 +2,8 @@
 """
 数据验证器
 
-验证用户上传的数据格式和内容
+验证用户上传的数据格式和内容。
+不对维度做固定值约束，仅校验文件间维度关系是否一致。
 """
 
 import logging
@@ -17,44 +18,16 @@ from .utils import EnhancedLogger, performance_monitor
 
 logger = logging.getLogger(__name__)
 
-# 固定默认配置
-DEFAULT_WATER_PARAMS = [
-    "turbidity",
-    "ss",
-    "sd",
-    "do",
-    "codmn",
-    "codcr",
-    "chla",
-    "tn",
-    "tp",
-    "chroma",
-    "nh3n",
-]
-DEFAULT_FEATURE_STATIONS = [f"STZ{i}" for i in range(1, 27)]
-
 
 class DataValidator:
     """数据验证器，用于验证用户上传数据的格式和内容。
 
-    此类提供数据格式验证、类型检查和数据一致性验证功能，
-    支持Type 0和Type 1两种模型类型的数据验证。
+    不假设固定的参数数量或特征数量，仅基于文件间维度关系进行校验：
+    - w/a 维度一致 (F×P)
+    - b 维度为 w/a 的转置 (P×F)
+    - A 行数 = 参数数 P
+    - Range 行数 = 参数数 P, 列数 = 2 (min/max)
     """
-
-    def __init__(self):
-        # 使用固定默认值
-        self.standard_water_params = DEFAULT_WATER_PARAMS.copy()
-        self.standard_stations = DEFAULT_FEATURE_STATIONS.copy()
-
-    @property
-    def expected_water_params(self) -> list[str]:
-        """向后兼容的属性名"""
-        return self.standard_water_params
-
-    @property
-    def expected_stations(self) -> list[str]:
-        """向后兼容的属性名"""
-        return self.standard_stations
 
     @performance_monitor("validate_data_format")
     def validate_data_format(
@@ -79,9 +52,9 @@ class DataValidator:
 
             # 检查必需文件
             if model_type == 1:
-                required_files = ["w", "a", "b", "A", "Range"]  # Type 1现在也需要A文件
+                required_files = ["w", "a", "b", "A", "Range"]
             else:
-                required_files = ["A", "Range"]  # Type 0需要A文件
+                required_files = ["A", "Range"]
 
             for file_type in required_files:
                 if file_type not in processed_data:
@@ -100,19 +73,19 @@ class DataValidator:
                     logger.error(f"{file_type}文件验证失败: {error_msg}")
                     return False
 
-            # 验证各类数据
+            # 验证各文件基本格式（非空、全数值）
             if model_type == 1:
-                # 验证系数矩阵
-                if not self._validate_coefficient_matrices(processed_data):
+                if not self._validate_matrix_basic(processed_data, ["w", "a", "b"]):
                     return False
 
-            if model_type == 0:
-                # 验证A系数
-                if not self._validate_a_coefficient(processed_data["A"]):
-                    return False
+            if not self._validate_a_coefficient(processed_data["A"]):
+                return False
 
-            # 验证Range数据
             if not self._validate_range_data(processed_data["Range"]):
+                return False
+
+            # 验证文件间维度一致性
+            if not self._validate_cross_file_dimensions(processed_data, model_type):
                 return False
 
             logger.info("数据格式验证通过")
@@ -122,51 +95,29 @@ class DataValidator:
             logger.error(f"验证数据格式时发生错误: {str(e)}")
             return False
 
-    def _validate_coefficient_matrices(
-        self, processed_data: dict[str, pd.DataFrame]
+    def _validate_matrix_basic(
+        self, processed_data: dict[str, pd.DataFrame], matrix_names: list[str]
     ) -> bool:
-        """验证系数矩阵（w、a、b）"""
+        """验证系数矩阵的基本格式（非空、全数值）"""
         try:
-            matrices = ["w", "a", "b"]
-
-            for matrix_name in matrices:
-                if matrix_name not in processed_data:
+            for name in matrix_names:
+                if name not in processed_data:
                     continue
 
-                matrix = processed_data[matrix_name]
+                matrix = processed_data[name]
 
-                # 检查基本格式
                 if matrix.empty:
-                    logger.error(f"{matrix_name}矩阵为空")
+                    logger.error(f"{name}矩阵为空")
                     return False
 
-                # 检查数值类型
                 if (
-                    not matrix.select_dtypes(include=[np.number]).shape[1]
-                    == matrix.shape[1]
+                    matrix.select_dtypes(include=[np.number]).shape[1]
+                    != matrix.shape[1]
                 ):
-                    logger.error(f"{matrix_name}矩阵包含非数值列")
+                    logger.error(f"{name}矩阵包含非数值列")
                     return False
 
-                # 检查行索引是否为水质参数
-                water_params_in_index = [
-                    param
-                    for param in self.standard_water_params
-                    if param in matrix.index
-                ]
-                if len(water_params_in_index) == 0:
-                    logger.warning(f"{matrix_name}矩阵行索引中没有标准水质参数")
-
-                # 检查列是否为特征
-                stations_in_cols = [
-                    col
-                    for col in matrix.columns
-                    if col in self.standard_stations or col.startswith("STZ")
-                ]
-                if len(stations_in_cols) == 0:
-                    logger.warning(f"{matrix_name}矩阵列中没有标准特征格式")
-
-                logger.info(f"{matrix_name}矩阵验证通过: {matrix.shape}")
+                logger.info(f"{name}矩阵基本格式验证通过: {matrix.shape}")
 
             return True
 
@@ -175,33 +126,20 @@ class DataValidator:
             return False
 
     def _validate_a_coefficient(self, a_data: pd.DataFrame) -> bool:
-        """验证A系数"""
+        """验证A系数基本格式"""
         try:
-            # 检查基本格式
             if a_data.empty:
                 logger.error("A系数数据为空")
                 return False
 
-            # 检查数值类型
             if (
-                not a_data.select_dtypes(include=[np.number]).shape[1]
-                == a_data.shape[1]
+                a_data.select_dtypes(include=[np.number]).shape[1]
+                != a_data.shape[1]
             ):
                 logger.error("A系数包含非数值列")
                 return False
 
-            # 检查行索引
-            water_params_in_index = [
-                param for param in self.standard_water_params if param in a_data.index
-            ]
-            if len(water_params_in_index) == 0:
-                logger.warning("A系数行索引中没有标准水质参数")
-
-            # A系数通常是单列或少数几列
-            if a_data.shape[1] > 5:
-                logger.warning(f"A系数有{a_data.shape[1]}列，通常应该是1-2列")
-
-            logger.info(f"A系数验证通过: {a_data.shape}")
+            logger.info(f"A系数基本格式验证通过: {a_data.shape}")
             return True
 
         except Exception as e:
@@ -209,42 +147,108 @@ class DataValidator:
             return False
 
     def _validate_range_data(self, range_data: pd.DataFrame) -> bool:
-        """验证Range数据"""
+        """验证Range数据基本格式"""
         try:
-            # 检查基本格式
             if range_data.empty:
                 logger.error("Range数据为空")
                 return False
 
-            # 检查数值类型
             numeric_cols = range_data.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) == 0:
                 logger.error("Range数据没有数值列")
                 return False
 
-            # 检查是否有足够的观测值
             if range_data.shape[0] < 2:
-                logger.warning("Range数据样本数量太少，可能影响范围计算")
+                logger.warning("Range数据行数太少，可能影响范围计算")
 
-            # 检查列名是否包含水质参数
-            water_params_in_cols = [
-                col for col in range_data.columns if col in self.standard_water_params
-            ]
-            if len(water_params_in_cols) == 0:
-                logger.warning("Range数据列中没有标准水质参数")
-
-            logger.info(f"Range数据验证通过: {range_data.shape}")
+            logger.info(f"Range数据基本格式验证通过: {range_data.shape}")
             return True
 
         except Exception as e:
             logger.error(f"验证Range数据时发生错误: {str(e)}")
             return False
 
+    def _validate_cross_file_dimensions(
+        self, processed_data: dict[str, pd.DataFrame], model_type: int
+    ) -> bool:
+        """验证文件间维度一致性
+
+        维度关系（以 P=参数数, F=特征数 为例）：
+        - w: F×P,  a: F×P  → 维度完全一致
+        - b: P×F             → 与 w/a 转置
+        - A: P×1             → 行数 = P
+        - Range: P×2         → 行数 = P (min/max两列)
+        """
+        try:
+            if model_type == 1:
+                w = processed_data["w"]
+                a = processed_data["a"]
+                b = processed_data["b"]
+                a_coeff = processed_data["A"]
+                range_data = processed_data["Range"]
+
+                # w/a 维度必须完全一致
+                if w.shape != a.shape:
+                    logger.error(
+                        f"w和a矩阵维度不一致: w={w.shape}, a={a.shape}"
+                    )
+                    return False
+
+                # 从 w 推断: 行数=F(特征数), 列数=P(参数数)
+                f_count = w.shape[0]  # 特征数
+                p_count = w.shape[1]  # 参数数
+
+                # b 应为 P×F
+                if b.shape != (p_count, f_count):
+                    logger.error(
+                        f"b矩阵维度与w/a不匹配: b={b.shape}, 期望=({p_count}, {f_count})"
+                    )
+                    return False
+
+                # A 行数应为 P
+                if a_coeff.shape[0] != p_count:
+                    logger.error(
+                        f"A系数行数与参数数不一致: A行数={a_coeff.shape[0]}, 参数数={p_count}"
+                    )
+                    return False
+
+                # Range 行数应为 P
+                if range_data.shape[0] != p_count:
+                    logger.error(
+                        f"Range行数与参数数不一致: Range行数={range_data.shape[0]}, 参数数={p_count}"
+                    )
+                    return False
+
+                logger.info(
+                    f"维度一致性验证通过: {p_count}个参数 × {f_count}个特征"
+                )
+
+            elif model_type == 0:
+                a_coeff = processed_data["A"]
+                range_data = processed_data["Range"]
+
+                p_count = a_coeff.shape[0]
+
+                # Range 行数应与 A 行数一致
+                if range_data.shape[0] != p_count:
+                    logger.error(
+                        f"Range行数与A系数行数不一致: Range行数={range_data.shape[0]}, A行数={p_count}"
+                    )
+                    return False
+
+                logger.info(f"维度一致性验证通过: {p_count}个参数")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"验证维度一致性时发生错误: {str(e)}")
+            return False
+
     def check_data_consistency(
         self, processed_data: dict[str, pd.DataFrame], model_type: int
     ) -> tuple[bool, list[str]]:
         """
-        检查数据一致性
+        检查数据一致性（软性警告，不阻止流程）
 
         Args:
             processed_data: 处理后的数据字典
@@ -256,52 +260,6 @@ class DataValidator:
         warnings = []
 
         try:
-            if model_type == 1:
-                # 检查系数矩阵的维度一致性
-                matrices = ["w", "a", "b"]
-                shapes = []
-
-                for matrix_name in matrices:
-                    if matrix_name in processed_data:
-                        shapes.append((matrix_name, processed_data[matrix_name].shape))
-
-                # 检查行数是否一致
-                if len(shapes) > 1:
-                    row_counts = [shape[1][0] for shape in shapes]
-                    if not all(count == row_counts[0] for count in row_counts):
-                        warnings.append(f"系数矩阵行数不一致: {shapes}")
-
-                # 检查w和a矩阵的列数是否一致
-                if "w" in processed_data and "a" in processed_data:
-                    if processed_data["w"].shape[1] != processed_data["a"].shape[1]:
-                        warnings.append(
-                            f"w和a矩阵列数不一致: {processed_data['w'].shape[1]} vs {processed_data['a'].shape[1]}"
-                        )
-
-            # 检查A系数和其他矩阵的行数是否一致
-            if "A" in processed_data and model_type == 1:
-                if "w" in processed_data:
-                    if processed_data["A"].shape[0] != processed_data["w"].shape[0]:
-                        warnings.append(
-                            f"A系数和w矩阵行数不一致: {processed_data['A'].shape[0]} vs {processed_data['w'].shape[0]}"
-                        )
-
-            # 检查Range数据的列与其他矩阵的行是否有对应关系
-            if "Range" in processed_data:
-                range_cols = set(processed_data["Range"].columns)
-
-                if model_type == 1 and "w" in processed_data:
-                    matrix_rows = set(processed_data["w"].index)
-                    common_params = range_cols.intersection(matrix_rows)
-                    if len(common_params) == 0:
-                        warnings.append("Range数据的列与系数矩阵的行没有共同的水质参数")
-
-                if "A" in processed_data:
-                    a_rows = set(processed_data["A"].index)
-                    common_params = range_cols.intersection(a_rows)
-                    if len(common_params) == 0:
-                        warnings.append("Range数据的列与A系数的行没有共同的水质参数")
-
             # 检查数据范围合理性
             self._check_data_ranges(processed_data, warnings)
 
@@ -322,11 +280,9 @@ class DataValidator:
                 if matrix_name in processed_data:
                     matrix = processed_data[matrix_name]
 
-                    # 检查极值
                     if matrix.min().min() < -1000 or matrix.max().max() > 1000:
                         warnings.append(f"{matrix_name}矩阵存在极值，可能需要检查")
 
-                    # 检查是否有过多零值
                     zero_ratio = (matrix == 0).sum().sum() / matrix.size
                     if zero_ratio > 0.8:
                         warnings.append(
@@ -338,28 +294,6 @@ class DataValidator:
                 a_matrix = processed_data["A"]
                 if a_matrix.min().min() < -10 or a_matrix.max().max() > 10:
                     warnings.append("A系数存在极值，可能需要检查")
-
-            # 检查Range数据
-            if "Range" in processed_data:
-                range_data = processed_data["Range"]
-
-                # 使用本地工具验证水质指标合理性
-                negative_params = []
-                for param in range_data.columns:
-                    if param in self.standard_water_params:
-                        for value in range_data[param].dropna():
-                            is_valid, error_msg = (
-                                BaseDataValidator.validate_water_quality_indicator(
-                                    value, param
-                                )
-                            )
-                            if not is_valid and "不应为负数" in error_msg:
-                                if param not in negative_params:
-                                    negative_params.append(param)
-                                break
-
-                if negative_params:
-                    warnings.append(f"以下水质参数存在负值: {negative_params}")
 
         except Exception as e:
             logger.error(f"检查数据范围时发生错误: {str(e)}")

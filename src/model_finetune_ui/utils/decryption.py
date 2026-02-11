@@ -115,8 +115,8 @@ class DecryptionManager:
             logger.info(f"📋 检测到文件格式: {bin_format}")
 
             if bin_format == "hex_reverse":
-                # 十六进制混淆格式
-                logger.info("🔓 使用十六进制混淆方式解密...")
+                # 预警器专用格式
+                logger.info("🔓 使用预警器专用方式解密...")
                 decrypted_data = self._decrypt_hex_reverse(file_data)
             else:
                 # AES加密格式（现有逻辑）
@@ -278,10 +278,10 @@ class DecryptionManager:
             hex_string = reversed_hex[::-1]
             data_json = bytes.fromhex(hex_string).decode("utf-8")
             result = json.loads(data_json)
-            logger.info("✅ 十六进制混淆格式解密成功")
+            logger.info("✅ 预警器专用格式解密成功")
             return result
         except Exception as e:
-            logger.error(f"❌ 十六进制混淆解密失败: {str(e)}")
+            logger.error(f"❌ 预警器专用解密失败: {str(e)}")
             return None
 
     def _simple_decrypt(self, file_path: str) -> dict[str, Any] | None:
